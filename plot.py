@@ -3,10 +3,10 @@ from matplotlib import pyplot as plt
 
 def plot(x,y,x_l=0,x_u=1,y_l=0,y_u=1):
     plt.figure(dpi=700,figsize=(4,4))
-    colors=['pink','c','black']
+    colors = ['pink', 'c', 'black']
     # categories=[2,0,1]
     # labels=['拖网','围网','刺网']
-    alphas=[1,0.65,0.35]
+    alphas = [1, 0.65, 0.35]
     for i in range(3):
         plt.scatter(x,
                     y,
