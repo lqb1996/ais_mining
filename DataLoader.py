@@ -20,11 +20,15 @@ class CSVDataLoader:
         for csv_file in self.csv_files:
             self.read_feat(csv_file)
         mmsi_group = self.df_total.groupby('mmsi')
-        max_mmsi = mmsi_group.count()['time'].max()
+        count = mmsi_group.count()['time']
+        max_mmsi = count.max()
         for mmsi, group in mmsi_group:
-            self.mmsi_list.append(mmsi)
-            # print(group)
-        print(max_mmsi)
+            if count[mmsi] > 10:
+                self.mmsi_list.append(mmsi)
+                # self.sort_by_mmsi[mmsi] = group
+                # print(group)
+        print(self.sort_by_mmsi)
+        print(count)
 
     def read_feat(self, csv_file):
         df = pd.read_csv(csv_file)
