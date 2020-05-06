@@ -95,12 +95,10 @@ for step in range(int(cf.get("super-param", "epoch"))):
     #         loss = loss_func(output, ty)
     #
     #         print('epoch : %d  ' % step, 'val_loss : %.4f' % loss.cpu().item())
-        if loss.cpu().item() < best_loss:
-            best_loss = loss.cpu().item()
-            torch.save(rnn, 'weights/rnn.pkl'.format(loss.cpu().item()))
-            print('new model saved at epoch {} with val_loss {}'.format(step, best_loss))
     sum = 0
     for item in mean_loss:
         sum += item
     m = sum / len(mean_loss)
     print('epoch : %d  ' % step, 'train_loss : %.4f' % m)
+    torch.save(rnn, 'weights/rnn.pkl'.format(m))
+    print('new model saved at epoch {} with val_loss {}'.format(step, m))

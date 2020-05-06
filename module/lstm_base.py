@@ -14,7 +14,7 @@ class LSTM4PRE(nn.Module):
         super(LSTM4PRE, self).__init__()
 
         self.lstm = nn.LSTM(
-            input_size=8,  # 输入尺寸为 8，表示一条数据具有8个特征维度
+            input_size=10,  # 输入尺寸为 10，表示一条数据具有10个特征维度
             hidden_size=2048,
             num_layers=2,
             bidirectional=True,
