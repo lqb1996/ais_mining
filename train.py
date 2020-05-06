@@ -67,7 +67,7 @@ def maskNLLLoss(inp, target, mask):
 
 save_path = os.path.join(proDir, cf.get("path", "res_path"), time.asctime(time.localtime(time.time())))
 if not os.path.exists(save_path):
-    os.mkdir(save_path)
+    os.makedirs(save_path)
 
 for step in range(int(cf.get("super-param", "epoch"))):
     mean_loss = []
