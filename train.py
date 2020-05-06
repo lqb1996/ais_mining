@@ -65,8 +65,9 @@ def maskNLLLoss(inp, target, mask):
     return loss, nTotal.item()
 
 
-if not os.path.exists('weights'):
-    os.mkdir('weights')
+save_path = os.path.join(proDir, cf.get("path", "res_path"), time.asctime(time.localtime(time.time())))
+if not os.path.exists(save_path):
+    os.mkdir(save_path)
 
 for step in range(int(cf.get("super-param", "epoch"))):
     mean_loss = []
@@ -100,5 +101,7 @@ for step in range(int(cf.get("super-param", "epoch"))):
         sum += item
     m = sum / len(mean_loss)
     print('epoch : %d  ' % step, 'train_loss : %.4f' % m)
-    torch.save(rnn, 'weights/rnn.pkl'.format(m))
+    torch.save(rnn, os.path.join(save_path, 'lstm4pre%d.pkl' % step))
+    with open(os.path.join(save_path, 'lstm4pre.log'), 'a+') as loss4log:
+        loss4log.write('epoch : %d  train_loss : %.4f\n' % step, m)
     print('new model saved at epoch {} with val_loss {}'.format(step, m))
