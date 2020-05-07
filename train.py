@@ -22,7 +22,7 @@ csv_loader = CSVDataSet(csv_path)
 def collate_fn(data):
     data.sort(key=lambda x: len(x), reverse=True)
     data_x = [sq[0:-1] for sq in data]
-    data_y = [sq[1:, 1:3] for sq in data]
+    data_y = [torch.cat((sq[1:, 1:3], sq[1:, -2:]), 1) for sq in data]
     datax_length = [len(sq) for sq in data_x]
     datay_length = [len(sq) for sq in data_x]
     data_x = rnn_utils.pad_sequence(data_x, batch_first=True, padding_value=0)
@@ -72,24 +72,22 @@ for step in range(int(cf.get("super-param", "epoch"))):
             tx = tx.float().cuda()
             ty = ty.float().cuda()
 
-        with torch.no_grad():
-            weights = np.tanh(np.arange(ty.cpu().numpy()) * (np.e / ty.cpu().numpy()))
-            weights = torch.tensor(weights, dtype=torch.float32, device=device)
+        # with torch.no_grad():
+        #     weights = np.tanh(np.arange(ty_len) * (np.e / ty_len))
+        #     weights = torch.tensor(weights, dtype=torch.float32, device=device)
 
         tx = rnn_utils.pack_padded_sequence(tx, tx_len, batch_first=True)
         output = rnn(tx)
 
         # 直接对输出结果计算MSE损失
-        # loss = loss_func(output, ty)
+        loss = loss_func(output, ty)
         # mask掉多余的padding再计算MSE损失
         # mask = np.ones(ty.shape)
         # mask[np.where(mask > ty_len)] = 0
         # loss = maskNLLLoss(output, ty, ty_len)
         # 根据预测序列所用到的长短调整loss
-        print(output.shape)
-        print(weights.shape)
-        loss = (output - ty) ** 2 * weights
-        loss = loss.mean()
+        # loss = (output - ty) ** 2 * weights
+        # loss = loss.mean()
 
         optimizer.zero_grad()  # clear gradients for this training step
         loss.backward()  # back propagation, compute gradients

@@ -36,19 +36,20 @@ class LSTMlight4PRE(nn.Module):
 
         self.lstm = nn.LSTM(
             input_size=12,
-            hidden_size=512,
+            hidden_size=1024,
             num_layers=2,
             bidirectional=True,
-            batch_first=True)
+            batch_first=True,
+            dropout=0.4
+        )
 
         self.out = nn.Sequential(
-            nn.Linear(1024, 128),
-            nn.Linear(128, 2)
+            nn.Linear(2048, 256),
+            nn.Linear(256, 4)
         )
 
     def forward(self, x):
         r_out, (h_n, h_c) = self.lstm(x, None)  # None 表示 hidden state 会用全 0 的 state
         out_pad, out_len = rnn_utils.pad_packed_sequence(r_out, batch_first=True)
-        print(out_len)
         out = self.out(out_pad)
         return out

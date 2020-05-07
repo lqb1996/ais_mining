@@ -2,11 +2,11 @@ from matplotlib import pyplot as plt
 
 
 def plot(x, y, x_pre, y_pre, x_l=0, x_u=1, y_l=0, y_u=1, file='test.png'):
-    plt.figure(dpi=700,figsize=(4, 4))
+    plt.figure(dpi=700, figsize=(4, 4))
     colors = ['pink', 'c', 'black']
     # categories=[2,0,1]
     labels = ['ground_truth', 'predict']
-    alphas = [1, 0.65, 0.35]
+    alphas = [1, 0.35, 0.35]
     plt.scatter(x,
                 y,
                 s=6,
@@ -26,7 +26,7 @@ def plot(x, y, x_pre, y_pre, x_l=0, x_u=1, y_l=0, y_u=1, file='test.png'):
     plt.xticks(fontsize=5)
     plt.yticks(fontsize=5, rotation=90)
     plt.grid(alpha=0.2)
-    plt.legend(frameon=True,fontsize=5,loc='upper left')
+    plt.legend(frameon=True, fontsize=5, loc='upper left')
     # plt.xlabel(x.name,fontsize=5)
     # plt.ylabel(y.name,fontsize=5)
     # plt.xlim(x.quantile(x_l),x.quantile(x_u))

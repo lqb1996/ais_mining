@@ -42,7 +42,8 @@ test_loader = DataLoader(dataset=csv_loader,
                           shuffle=True)
 
 
-rnn = LSTM4PRE()
+# rnn = LSTM4PRE()
+rnn = LSTMlight4PRE()
 os.environ["CUDA_VISIBLE_DEVICES"] = cf.get("super-param", "gpu_ids")
 USE_CUDA = torch.cuda.is_available()
 device = torch.device("cuda" if USE_CUDA else "cpu")
