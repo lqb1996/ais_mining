@@ -8,14 +8,7 @@ import time
 import datetime
 from module.lstm_base import *
 import torch.nn.utils.rnn as rnn_utils
-
-from joblib import Parallel, delayed
-from sklearn.metrics import f1_score, log_loss, classification_report
-from sklearn.model_selection import StratifiedKFold
-
-# import lightgbm as lgb
 from DataLoader import *
-from plot import *
 
 proDir = os.path.split(os.path.realpath(__file__))[0]
 configPath = os.path.join(proDir, "setting.cfg")
@@ -29,7 +22,7 @@ csv_loader = CSVDataSet(csv_path)
 def collate_fn(data):
     data.sort(key=lambda x: len(x), reverse=True)
     data_x = [sq[0:-1] for sq in data]
-    data_y = [sq[1:, :2] for sq in data]
+    data_y = [sq[1:, 1:3] for sq in data]
     datax_length = [len(sq) for sq in data_x]
     datay_length = [len(sq) for sq in data_x]
     data_x = rnn_utils.pad_sequence(data_x, batch_first=True, padding_value=0)
@@ -42,7 +35,8 @@ train_loader = DataLoader(dataset=csv_loader,
                           collate_fn=collate_fn,
                           shuffle=True)
 
-rnn = LSTM4PRE()
+# rnn = LSTM4PRE()
+rnn = LSTMlight4PRE()
 
 os.environ["CUDA_VISIBLE_DEVICES"] = cf.get("super-param", "gpu_ids")
 USE_CUDA = torch.cuda.is_available()
@@ -69,6 +63,8 @@ save_path = os.path.join(proDir, cf.get("path", "res_path"), time.asctime(time.l
 if not os.path.exists(save_path):
     os.makedirs(save_path)
 
+
+
 for step in range(int(cf.get("super-param", "epoch"))):
     mean_loss = []
     for tx, tx_len, ty, ty_len in train_loader:  # (batch_size, length_per_sequence, feature_per_words)
@@ -76,10 +72,25 @@ for step in range(int(cf.get("super-param", "epoch"))):
             tx = tx.float().cuda()
             ty = ty.float().cuda()
 
+        with torch.no_grad():
+            weights = np.tanh(np.arange(ty.cpu().numpy()) * (np.e / ty.cpu().numpy()))
+            weights = torch.tensor(weights, dtype=torch.float32, device=device)
+
         tx = rnn_utils.pack_padded_sequence(tx, tx_len, batch_first=True)
         output = rnn(tx)
-        # out_pad, out_len = rnn_utils.pad_packed_sequence(output, batch_first=True)
-        loss = loss_func(output, ty)
+
+        # 直接对输出结果计算MSE损失
+        # loss = loss_func(output, ty)
+        # mask掉多余的padding再计算MSE损失
+        # mask = np.ones(ty.shape)
+        # mask[np.where(mask > ty_len)] = 0
+        # loss = maskNLLLoss(output, ty, ty_len)
+        # 根据预测序列所用到的长短调整loss
+        print(output.shape)
+        print(weights.shape)
+        loss = (output - ty) ** 2 * weights
+        loss = loss.mean()
+
         optimizer.zero_grad()  # clear gradients for this training step
         loss.backward()  # back propagation, compute gradients
         optimizer.step()
@@ -103,5 +114,5 @@ for step in range(int(cf.get("super-param", "epoch"))):
     print('epoch : %d  ' % step, 'train_loss : %.4f' % m)
     torch.save(rnn, os.path.join(save_path, 'lstm4pre%d.pkl' % step))
     with open(os.path.join(save_path, 'lstm4pre.log'), 'a+') as loss4log:
-        loss4log.write('epoch : %d  train_loss : %.4f\n' % step, m)
+        loss4log.write('epoch : %d  train_loss : %.4f\n' % (step, m))
     print('new model saved at epoch {} with val_loss {}'.format(step, m))

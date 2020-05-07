@@ -9,18 +9,21 @@ from tqdm import tqdm
 
 
 class CSVDataSet(Dataset):
-    def __init__(self, csv_path):
+    def __init__(self, csv_path=None, csv_file=None):
         self.csv_files = []
-        self.mmsi_list = []
+        self.mmsi_mapping = []
         self.df_total = None
         self.np_total_x = []
         self.np_total_y = []
         self.mask = []
-        for root, dirs, files in os.walk(csv_path):
-            for f in files:
-                if f.endswith('.csv'):
-                    self.csv_files.append(os.path.join(root, f))
-        for csv_file in self.csv_files:
+        if csv_file is None:
+            for root, dirs, files in os.walk(csv_path):
+                for f in files:
+                    if f.endswith('.csv'):
+                        self.csv_files.append(os.path.join(root, f))
+            for csv_file in self.csv_files:
+                self.read_feat(csv_file)
+        else:
             self.read_feat(csv_file)
 
         mmsi_group = self.df_total.groupby('mmsi')
@@ -31,11 +34,14 @@ class CSVDataSet(Dataset):
         max_gap_time = int(time.mktime(time.strptime('2019-10-01 06:00:00', "%Y-%m-%d %H:%M:%S"))) - base_time
         print("Loading csv files:")
         for mmsi, group in tqdm(mmsi_group):
-            self.mmsi_list.append(mmsi)
+            self.mmsi_mapping.append(mmsi)
             mmsi_sorted = group
+            mmsi_sorted['mmsi'] = mmsi_sorted['mmsi'].apply(lambda x: self.mmsi_mapping.index(x))
             mmsi_sorted['time'] = mmsi_sorted['time'].apply(lambda x: int(time.mktime(time.strptime(x, '%Y-%m-%d %H:%M:%S')))-base_time)
             mmsi_sorted = mmsi_sorted.sort_values(by="time", ascending=True, inplace=False)
             mmsi_sorted['gap_time'] = mmsi_sorted['time'].diff()
+            mmsi_sorted['offset_lon'] = mmsi_sorted['longitude'].diff()
+            mmsi_sorted['offset_lat'] = mmsi_sorted['latitude'].diff()
             splited_idx = 0
             mmsi_sorted = mmsi_sorted.reset_index(drop=True)
             for i, gap in mmsi_sorted.iterrows():
@@ -54,6 +60,9 @@ class CSVDataSet(Dataset):
         df = pd.read_csv(csv_file)
         self.df_total = pd.concat([self.df_total, df])
         return df
+
+    def save_as_csv(self, file='data/total.csv'):
+        self.df_total.tocsv(file)
 
     def __getitem__(self, index):
         return self.np_total_x[index]
