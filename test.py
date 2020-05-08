@@ -28,7 +28,7 @@ csv_loader = CSVDataSet(csv_file=csv_file)
 def collate_fn(data):
     data.sort(key=lambda x: len(x), reverse=True)
     data_x = [sq[0:-1] for sq in data]
-    data_y = [sq[1:, 1:3] for sq in data]
+    data_y = [torch.cat((sq[1:, 1:3], sq[1:, -2:]), 1) for sq in data]
     datax_length = [len(sq) for sq in data_x]
     datay_length = [len(sq) for sq in data_x]
     data_x = rnn_utils.pad_sequence(data_x, batch_first=True, padding_value=0)
@@ -43,7 +43,8 @@ test_loader = DataLoader(dataset=csv_loader,
 
 
 # rnn = LSTM4PRE()
-rnn = LSTMlight4PRE()
+# rnn = LSTMlight4PRE()
+rnn = LSTMTiny4PRE()
 os.environ["CUDA_VISIBLE_DEVICES"] = cf.get("super-param", "gpu_ids")
 USE_CUDA = torch.cuda.is_available()
 device = torch.device("cuda" if USE_CUDA else "cpu")
@@ -58,7 +59,7 @@ tx, tx_len, ty, ty_len = test_iter.next()
 if torch.cuda.is_available():
     tx = tx.float().cuda()
     ty = ty.float().cuda()
-
+rnn.eval()
 tx = rnn_utils.pack_padded_sequence(tx, tx_len, batch_first=True)
 
 # (16, 59, 2)
@@ -74,7 +75,7 @@ y_pre = np.array([])
 if not os.path.exists(save_path):
     os.makedirs(save_path)
 for i, n in enumerate(n_pre):
-    # print(np.concatenate((n, n_y[i]), axis=1)[:ty_len[i]])
+    print(np.concatenate((n, n_y[i]), axis=1)[:ty_len[i]])
     x = np.concatenate((x, n_y[i].T[0][:ty_len[i]]))
     y = np.concatenate((y, n_y[i].T[1][:ty_len[i]]))
     x_pre = np.concatenate((x_pre, n.T[0][:ty_len[i]]))
