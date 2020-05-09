@@ -17,23 +17,14 @@ cf.read(configPath)
 csv_path = os.path.join(proDir, cf.get("path", "csv_path"))
 total_np_file = os.path.join(proDir, cf.get("path", "total_np_file"))
 csv_loader = CSVDataSet(csv_path)
-print(csv_loader.total_tensor.shape)
-csv_loader.save_as_tensor()
+
 
 # 处理一个batchsize
-# def collate_fn(data):
-#     data.sort(key=lambda x: len(x), reverse=True)
-#     data_x = [sq[0:-1] for sq in data]
-#     data_y = [torch.cat((sq[1:, 1:3], sq[1:, -2:]), 1) for sq in data]
-#     datax_length = [len(sq) for sq in data_x]
-#     datay_length = [len(sq) for sq in data_x]
-#     data_x = rnn_utils.pad_sequence(data_x, batch_first=True, padding_value=0)
-#     data_y = rnn_utils.pad_sequence(data_y, batch_first=True, padding_value=0)
-#     return data_x, datax_length, data_y, datay_length
 def collate_fn(data):
     data.sort(key=lambda x: len(x), reverse=True)
     data_x = [sq[0:-1] for sq in data]
-    data_y = [torch.cat((sq[1:, 1:3], sq[1:, -2:]), 1) for sq in data]
+    # data_y = [torch.cat((sq[0:-1, 1:3], sq[0:-1, -2:]), 1) for sq in data]
+    data_y = [sq[1:, -2:] for sq in data]
     datax_length = [len(sq) for sq in data_x]
     datay_length = [len(sq) for sq in data_x]
     data_x = rnn_utils.pad_sequence(data_x, batch_first=True, padding_value=0)
@@ -45,11 +36,16 @@ train_loader = DataLoader(dataset=csv_loader,
                           batch_size=int(cf.get("super-param", "batch_size")),
                           collate_fn=collate_fn,
                           shuffle=True)
+test_loader = DataLoader(dataset=csv_loader,
+                          batch_size=int(cf.get("super-param", "batch_size")),
+                          collate_fn=collate_fn,
+                          shuffle=True)
 
 save_path = os.path.join(proDir, cf.get("path", "res_path"), time.asctime(time.localtime(time.time())))
 # rnn = LSTM4PRE()
 # rnn = LSTMlight4PRE()
 rnn = LSTMTiny4PRE()
+# rnn = bilstm_attn(int(cf.get("super-param", "batch_size")), 4, 512, True, 0.4, True, 64, 12)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = cf.get("super-param", "gpu_ids")
 USE_CUDA = torch.cuda.is_available()
@@ -89,14 +85,15 @@ for step in range(int(cf.get("super-param", "epoch"))):
         # 直接对输出结果计算MSE损失
         # loss = loss_func(output, ty)
         # 分开计算输出结果计算MSE损失
-        lamda = float(cf.get("super-param", "lamda"))
-        loss1 = loss_func(output[:, :2], ty[:, :2])
-        loss2 = loss_func(output[:, -2:], ty[:, -2:])
-        loss = loss1 + lamda * loss2
+        # lamda = float(cf.get("super-param", "lamda"))
+        # loss1 = loss_func(output[:, :2], ty[:, :2])
+        # loss2 = loss_func(output[:, -2:], ty[:, -2:])
+        # loss = loss1 + lamda * loss2
         # mask掉多余的padding再计算MSE损失
-        # mask = np.ones(ty.shape)
-        # mask[np.where(mask > ty_len)] = 0
-        # loss = maskNLLLoss(output, ty, ty_len)
+        loss = 0
+        for i, y in enumerate(ty):
+            loss += loss_func(output[i][:ty_len[i]], y[:ty_len[i]])
+        loss = loss/ty.shape[0]
         # 根据预测序列所用到的长短调整loss
         # loss = (output - ty) ** 2 * weights
         # loss = loss.mean()
@@ -108,7 +105,7 @@ for step in range(int(cf.get("super-param", "epoch"))):
 
     with torch.no_grad():
         rnn.eval()
-        tx, tx_len, ty, ty_len = iter(train_loader).next()
+        tx, tx_len, ty, ty_len = iter(test_loader).next()
         if torch.cuda.is_available():
             tx = tx.float().cuda()
             ty = ty.float().cuda()

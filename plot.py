@@ -25,6 +25,8 @@ def plot(x, y, x_pre, y_pre, x_l=0, x_u=1, y_l=0, y_u=1, file='test.png'):
                 linewidths=0.01)
     plt.xticks(fontsize=5)
     plt.yticks(fontsize=5, rotation=90)
+    # plt.xlim(106, 122)
+    # plt.ylim(0, 22)
     plt.grid(alpha=0.2)
     # plt.legend(frameon=True, fontsize=5, loc='upper left')
     # plt.xlabel(x.name,fontsize=5)

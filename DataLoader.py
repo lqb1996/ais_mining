@@ -17,11 +17,20 @@ class CSVDataSet(Dataset):
         self.df_total = None
         self.np_total_x = []
         self.np_total_y = []
-        self.mask = []
         if np_file is not None:
-            self.total_tensor = torch.from_numpy(np.load(np_file))
+            self.total_tensor = torch.from_numpy(np.load(np_file[0]))
+            self.total_length = torch.from_numpy(np.load(np_file[1]))
+            self.data_x = self.total_tensor[:, :, :12]
+            self.data_y = self.total_tensor[:, :, -4:]
+            self.datax_length = self.total_length[0]
+            self.datay_length = self.total_length[1]
         elif tensor_file is not None:
-            self.total_tensor = torch.load(tensor_file)
+            self.total_tensor = torch.load(tensor_file[0])
+            self.total_length = torch.load(tensor_file[1])
+            self.data_x = self.total_tensor[:, :, :12]
+            self.data_y = self.total_tensor[:, :, -4:]
+            self.datax_length = self.total_length[0]
+            self.datay_length = self.total_length[1]
         else:
             if csv_file is not None:
                 self.read_feat(csv_file)
@@ -34,10 +43,11 @@ class CSVDataSet(Dataset):
                     self.read_feat(csv_file)
 
             mmsi_group = self.df_total.groupby('mmsi')
-            count = mmsi_group.count()['time']
-            max_mmsi = count.max()  # max_mmsi=18375
-            base_time = int(time.mktime(time.strptime('2019-10-01 00:00:00', "%Y-%m-%d %H:%M:%S")))
+            # count = mmsi_group.count()['time']
+            # max_mmsi=18375
+            # max_mmsi = count.max()
             # max_gap_time = 21600
+            base_time = int(time.mktime(time.strptime('2019-10-01 00:00:00', "%Y-%m-%d %H:%M:%S")))
             max_gap_time = int(time.mktime(time.strptime('2019-10-01 06:00:00', "%Y-%m-%d %H:%M:%S"))) - base_time
             print("Loading csv files:")
             for mmsi, group in tqdm(mmsi_group):
@@ -51,25 +61,34 @@ class CSVDataSet(Dataset):
                 mmsi_sorted['offset_lat'] = mmsi_sorted['latitude'].diff()
                 splited_idx = 0
                 mmsi_sorted = mmsi_sorted.reset_index(drop=True)
-                for i, gap in mmsi_sorted.iterrows():
-                    if gap['gap_time'] > max_gap_time or gap['gap_time'] is 'NaN':
-                        if i-splited_idx > 5:   # 去除ais数据中,数据不超过5条的船,超过5条数据才能称为轨迹数据
-                            mmsi_sorted.iloc[splited_idx, 9] = 0
-                            mmsi_splited = np.array(mmsi_sorted.iloc[splited_idx: i])
-                            splited_idx = i
-                            mmsi_splited[np.isnan(mmsi_splited)] = 0  # 去除数据中的nan值
-                            self.np_total_x.append(torch.from_numpy(mmsi_splited))  # shape:(12920, 18374, 10)
-                        else:
-                            splited_idx = i
-            self.np_total_x.sort(key=lambda x: len(x), reverse=True)
-            data_x = [sq[0:-1] for sq in self.np_total_x]
-            data_y = [torch.cat((sq[1:, 1:3], sq[1:, -2:]), 1) for sq in self.np_total_x]
-            self.datax_length = torch.tensor([len(sq) for sq in data_x]).float()
-            self.datay_length = torch.tensor([len(sq) for sq in data_x]).float()
-            self.data_x = rnn_utils.pad_sequence(data_x, batch_first=True, padding_value=0).float()
-            self.data_y = rnn_utils.pad_sequence(data_y, batch_first=True, padding_value=0).float()
-            self.total_tensor = torch.cat((self.data_x, self.data_y), dim=2)
-            self.total_length = torch.cat((self.datax_length, self.datay_length), dim=1)
+
+                sorted_np = np.array(mmsi_sorted)
+                biger_than_max = np.zeros(sorted_np[:, -3].shape)
+                biger_than_max[sorted_np[:, -3] > max_gap_time] = 1
+                isNan = np.isnan(sorted_np[:, -3])
+                idx = biger_than_max + isNan
+                idx = np.where(idx > 0)[0]
+                for e, i in enumerate(idx):
+                    if (e + 1) < len(idx) and idx[e+1] - i > 5:
+                        splited = sorted_np[i: idx[e+1]]
+                        splited[np.isnan(splited)] = 0
+                        self.np_total_x.append(torch.from_numpy(splited))
+                if biger_than_max.shape[0] - 1 - idx[-1] > 5:
+                    splited = sorted_np[idx[-1]:]
+                    splited[np.isnan(splited)] = 0
+                    self.np_total_x.append(torch.from_numpy(splited))
+
+                # for i, gap in mmsi_sorted.iterrows():
+                #     if gap['gap_time'] > max_gap_time or gap['gap_time'] is 'NaN':
+                #         if i-splited_idx > 5:   # 去除ais数据中,数据不超过5条的船,超过5条数据才能称为轨迹数据
+                #             mmsi_sorted.iloc[splited_idx, 9] = 0
+                #             mmsi_splited = np.array(mmsi_sorted.iloc[splited_idx: i])
+                #             splited_idx = i
+                #             mmsi_splited[np.isnan(mmsi_splited)] = 0  # 去除数据中的nan值
+                #             print(mmsi_splited)
+                #             self.np_total_x.append(torch.from_numpy(mmsi_splited))  # shape:(12920, 18374, 10)
+                #         else:
+                #             splited_idx = i
         print("Finished loading!")
 
     def read_feat(self, csv_file):
@@ -94,7 +113,7 @@ class CSVDataSet(Dataset):
         torch.save(self.total_length, 'total_length')
 
     def __getitem__(self, index):
-        return self.data_x[index], self.datax_length[index], self.data_y[index], self.datay_length[index]
+        return self.np_total_x[index]
 
     def __len__(self):
-        return self.total_tensor.shape[0]
+        return len(self.np_total_x)

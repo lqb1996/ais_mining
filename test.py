@@ -2,10 +2,9 @@ import os, sys, glob
 import numpy as np
 import pandas as pd
 import torch
+import json
 import torch.nn as nn
 import configparser
-import time
-import datetime
 from module.lstm_base import *
 import torch.nn.utils.rnn as rnn_utils
 
@@ -13,7 +12,6 @@ from joblib import Parallel, delayed
 from sklearn.metrics import f1_score, log_loss, classification_report
 from sklearn.model_selection import StratifiedKFold
 
-# import lightgbm as lgb
 from DataLoader import *
 from plot import *
 
@@ -29,6 +27,7 @@ def collate_fn(data):
     data.sort(key=lambda x: len(x), reverse=True)
     data_x = [sq[0:-1] for sq in data]
     data_y = [torch.cat((sq[1:, 1:3], sq[1:, -2:]), 1) for sq in data]
+    # data_y = [sq[1:, -2:] for sq in data]
     datax_length = [len(sq) for sq in data_x]
     datay_length = [len(sq) for sq in data_x]
     data_x = rnn_utils.pad_sequence(data_x, batch_first=True, padding_value=0)
@@ -40,7 +39,6 @@ test_loader = DataLoader(dataset=csv_loader,
                           batch_size=int(cf.get("super-param", "batch_size")),
                           collate_fn=collate_fn,
                           shuffle=True)
-
 
 # rnn = LSTM4PRE()
 # rnn = LSTMlight4PRE()
@@ -60,11 +58,12 @@ if torch.cuda.is_available():
     tx = tx.float().cuda()
     ty = ty.float().cuda()
 rnn.eval()
+t_source = tx
 tx = rnn_utils.pack_padded_sequence(tx, tx_len, batch_first=True)
-
 # (16, 59, 2)
 pre_y = rnn(tx)
-n_pre = pre_y.cpu().detach().numpy()
+print(pre_y.shape)
+n_pre = (pre_y+t_source[:, :, 1:3]).cpu().detach().numpy()
 n_y = ty.cpu().detach().numpy()
 
 save_path = os.path.join(proDir, png_save_path)
@@ -74,10 +73,26 @@ x_pre = np.array([])
 y_pre = np.array([])
 if not os.path.exists(save_path):
     os.makedirs(save_path)
+
+s = "let route = '"
+truth = []
+predict = []
 for i, n in enumerate(n_pre):
-    print(np.concatenate((n, n_y[i]), axis=1)[:ty_len[i]])
-    x = np.concatenate((x, n_y[i].T[0][:ty_len[i]]))
-    y = np.concatenate((y, n_y[i].T[1][:ty_len[i]]))
-    x_pre = np.concatenate((x_pre, n.T[0][:ty_len[i]]))
-    y_pre = np.concatenate((y_pre, n.T[1][:ty_len[i]]))
-plot(x=x, y=y, x_pre=x_pre, y_pre=y_pre, file=os.path.join(save_path, 'test.png'))
+    # print(np.concatenate((n, n_y[i]), axis=1)[:ty_len[i]])
+    # x = np.concatenate((x, n_y[i][:ty_len[i]][:, 0]))
+    # y = np.concatenate((y, n_y[i][:ty_len[i]][:, 1]))
+    # x_pre = np.concatenate((x_pre, n[:ty_len[i]][:, 0]))
+    # y_pre = np.concatenate((y_pre, n[:ty_len[i]][:, 1]))
+    x = np.concatenate((x, n_y[i][:ty_len[i]][:, 0]))
+    y = np.concatenate((y, n_y[i][:ty_len[i]][:, 1]))
+    x_pre = np.concatenate((x_pre, n[:ty_len[i]][:, 0]))
+    y_pre = np.concatenate((y_pre, n[:ty_len[i]][:, 1]))
+    for j, p in enumerate(n_y[i][:ty_len[i]][:, 0]):
+        truth.append({"lon": str(p), "lat": str(n_y[i][:ty_len[i]][j, 1])})
+        predict.append({"lon": str(n[:ty_len[i]][j, 0]), "lat": str(n[:ty_len[i]][j, 1])})
+
+s += json.dumps([truth, predict]) + "';"
+# with open(os.path.join(save_path, 'show_points.js'), 'w') as show_points:
+#     show_points.write(s)
+plot(x=x, y=y, x_pre=x_pre, y_pre=y_pre, file=os.path.join(save_path, 'test_truth.png'))
+plot(x=[], y=[], x_pre=x_pre, y_pre=y_pre, file=os.path.join(save_path, 'test_pre.png'))
