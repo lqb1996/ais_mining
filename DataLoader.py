@@ -57,6 +57,10 @@ class CSVDataSet(Dataset):
                 mmsi_sorted['time'] = mmsi_sorted['time'].apply(lambda x: int(time.mktime(time.strptime(x, '%Y-%m-%d %H:%M:%S')))-base_time)
                 mmsi_sorted = mmsi_sorted.sort_values(by="time", ascending=True, inplace=False)
                 mmsi_sorted['gap_time'] = mmsi_sorted['time'].diff()
+                mmsi_sorted['offset_cog'] = mmsi_sorted['cog'].diff()
+                mmsi_sorted['offset_rot'] = mmsi_sorted['rot'].diff()
+                mmsi_sorted['offset_sog'] = mmsi_sorted['sog'].diff()
+                mmsi_sorted['offset_trueHeading'] = mmsi_sorted['trueHeading'].diff()
                 mmsi_sorted['offset_lon'] = mmsi_sorted['longitude'].diff()
                 mmsi_sorted['offset_lat'] = mmsi_sorted['latitude'].diff()
                 splited_idx = 0

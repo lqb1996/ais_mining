@@ -25,9 +25,8 @@ csv_loader = CSVDataSet(csv_file=csv_file)
 # 处理一个batchsize
 def collate_fn(data):
     data.sort(key=lambda x: len(x), reverse=True)
-    data_x = [sq[0:-1] for sq in data]
+    data_x = [torch.cat((sq[0:-1, 1:7], sq[0:-1, 9:]), 1) for sq in data]
     data_y = [torch.cat((sq[1:, 1:3], sq[1:, -2:]), 1) for sq in data]
-    # data_y = [sq[1:, -2:] for sq in data]
     datax_length = [len(sq) for sq in data_x]
     datay_length = [len(sq) for sq in data_x]
     data_x = rnn_utils.pad_sequence(data_x, batch_first=True, padding_value=0)
@@ -42,7 +41,8 @@ test_loader = DataLoader(dataset=csv_loader,
 
 # rnn = LSTM4PRE()
 # rnn = LSTMlight4PRE()
-rnn = LSTMTiny4PRE()
+# rnn = ResLSTM_Attention4PRE()
+rnn = TransLSTM4PRE()
 os.environ["CUDA_VISIBLE_DEVICES"] = cf.get("super-param", "gpu_ids")
 USE_CUDA = torch.cuda.is_available()
 device = torch.device("cuda" if USE_CUDA else "cpu")
@@ -59,11 +59,12 @@ if torch.cuda.is_available():
     ty = ty.float().cuda()
 rnn.eval()
 t_source = tx
-tx = rnn_utils.pack_padded_sequence(tx, tx_len, batch_first=True)
+# tx = rnn_utils.pack_padded_sequence(tx, tx_len, batch_first=True)
 # (16, 59, 2)
-pre_y = rnn(tx)
-print(pre_y.shape)
-n_pre = (pre_y+t_source[:, :, 1:3]).cpu().detach().numpy()
+pre_y = rnn(tx, tx_len)
+# print(pre_y.shape)
+n_pre = (pre_y+t_source[:, :, 0:2]).cpu().detach().numpy()
+# n_pre = pre_y.cpu().detach().numpy()
 n_y = ty.cpu().detach().numpy()
 
 save_path = os.path.join(proDir, png_save_path)

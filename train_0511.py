@@ -23,7 +23,7 @@ csv_loader = CSVDataSet(csv_path)
 def collate_fn(data):
     # mmsi,longitude,latitude,cog,rot,trueHeading,sog,time,navStatus,gap,gap,gap
     data.sort(key=lambda x: len(x), reverse=True)
-    # longitude,latitude,cog,rot,trueHeading,sog,timegap,longap,latgap
+    # longitude,latitude,cog,rot,trueHeading,sog,timegap,gap,gap,gap,longap,latgap
     data_x = [torch.cat((sq[0:-1, 1:7], sq[0:-1, 9:]), 1) for sq in data]
     data_y = [torch.cat((sq[1:, 1:3], sq[1:, -2:]), 1) for sq in data]
     # data_y = [sq[1:, -2:] for sq in data]
@@ -47,7 +47,8 @@ save_path = os.path.join(proDir, cf.get("path", "res_path"), time.strftime("%m-%
 # rnn = LSTM4PRE()
 # rnn = LSTMlight4PRE()
 # rnn = LSTM_Attention4PRE()
-rnn = ResLSTM_Attention4PRE()
+# rnn = ResLSTM_Attention4PRE()
+rnn = TransLSTM4PRE()
 
 os.environ["CUDA_VISIBLE_DEVICES"] = cf.get("super-param", "gpu_ids")
 USE_CUDA = torch.cuda.is_available()
@@ -58,15 +59,6 @@ if torch.cuda.is_available():
 optimizer = torch.optim.Adam(rnn.parameters(), lr=float(cf.get("super-param", "lr")))  # optimize all cnn parameters
 loss_func = nn.MSELoss()
 best_loss = 1000
-
-
-# 去掉mask并计算损失
-def maskNLLLoss(inp, target, mask):
-    nTotal = mask.sum()
-    # crossEntropy = -torch.log(torch.gather(inp, 1, target.view(-1, 1)).squeeze(1))
-    loss = loss_func(inp, target).masked_select(mask).mean()
-    loss = loss.to(device)
-    return loss, nTotal.item()
 
 
 for step in range(int(cf.get("super-param", "epoch"))):
@@ -81,31 +73,15 @@ for step in range(int(cf.get("super-param", "epoch"))):
         #     weights = np.tanh(np.arange(ty_len) * (np.e / ty_len))
         #     weights = torch.tensor(weights, dtype=torch.float32, device=device)
         ttruth = tx
-        # tx = rnn_utils.pack_padded_sequence(tx, tx_len, batch_first=True)
+        tx = tx[:, :, :]
         output = rnn(tx, tx_len)
-
-        # 直接对输出结果计算MSE损失
-        # loss = loss_func(output, ty)
-        # 分开计算输出结果计算MSE损失
-        # lamda = float(cf.get("super-param", "lamda"))
-        # loss1 = loss_func(output[:, :2], ty[:, :2])
-        # loss2 = loss_func(output[:, -2:], ty[:, -2:])
-        # loss = loss1 + lamda * loss2
-        # mask掉多余的padding再计算MSE损失
-        # loss = 0
-        # for i, y in enumerate(ty):
-        #     loss += loss_func(output[i][:ty_len[i]], y[:ty_len[i]])
-        # loss = loss/ty.shape[0]
         # 根据预测序列所用到的长短调整loss计算log()-1的乘积
-        # 17:XX
         for i, y in enumerate(ty):
-            loss = (torch.log(loss_func(output[i][:ty_len[i]], y[:ty_len[i], -2:]))-1)\
-                    * (torch.log(loss_func(output[i][:ty_len[i]]+ttruth[i][:ty_len[i], :2], y[:ty_len[i], :2]))-1)
-        # 根据预测序列所用到的长短调整loss计算(log()-1)**2的和
-        # 16:XX
-        # for i, y in enumerate(ty):
-        #     loss = (loss_func(output[i][:ty_len[i]], y[:ty_len[i], -2:]))**2\
-        #             + (loss_func(output[i][:ty_len[i]]+ttruth[i][:ty_len[i], :2], y[:ty_len[i], :2]))**2
+            offset_loss = loss_func(output[i][:ty_len[i]], y[:ty_len[i], -2:])
+            truth_loss = loss_func(output[i][:ty_len[i]]+ttruth[i][:ty_len[i], :2], y[:ty_len[i], :2])
+            offset_loss = (offset_loss*torch.log(offset_loss))**2
+            truth_loss = (truth_loss*torch.log(truth_loss))**2
+            loss = offset_loss + truth_loss
         optimizer.zero_grad()  # clear gradients for this training step
         loss.backward()  # back propagation, compute gradients
         optimizer.step()
@@ -121,15 +97,14 @@ for step in range(int(cf.get("super-param", "epoch"))):
         # tx = rnn_utils.pack_padded_sequence(tx, tx_len, batch_first=True)
         output = rnn(tx, tx_len)
         loss = loss_func(output, ty[:, :, -2:])
-        print('epoch : %d  ' % step, 'val_loss : %.4f' % loss.cpu().item())
         sum = 0
         for item in mean_loss:
             sum += item
         m = sum / len(mean_loss)
-        print('epoch : %d  ' % step, 'train_loss : %.4f' % m)
+        print('epoch : %d  ' % step, 'val_loss : %.4f' % loss.cpu().item(), 'train_loss : %.4f' % m)
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         torch.save(rnn, os.path.join(save_path, 'lstm4pre%d.pkl' % step))
         with open(os.path.join(save_path, 'lstm4pre.log'), 'a+') as loss4log:
-            loss4log.write('epoch : %d  train_loss : %.4f\n' % (step, m))
-        print('new model saved at epoch {} with val_loss {}'.format(step, m))
+            loss4log.write('epoch : %d  train_loss : %.4f  val_loss : %.4f\n' % (step, m, loss.cpu().item()))
+        # print('new model saved at epoch {} with val_loss {}'.format(step, loss.cpu().item()))
