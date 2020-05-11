@@ -23,4 +23,6 @@ a larger model with two self attention and a resnet,loss is same as
 loss:
 take a modle like transformer
 loss:0.01,just so so
+改进transfomer，增加全局残差结构(效果不错)
+loss:0.0002
 ##clustering object
