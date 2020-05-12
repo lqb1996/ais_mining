@@ -8,10 +8,6 @@ import configparser
 from module.lstm_base import *
 import torch.nn.utils.rnn as rnn_utils
 
-from joblib import Parallel, delayed
-from sklearn.metrics import f1_score, log_loss, classification_report
-from sklearn.model_selection import StratifiedKFold
-
 from DataLoader import *
 from plot import *
 
@@ -19,8 +15,8 @@ proDir = os.path.split(os.path.realpath(__file__))[0]
 configPath = os.path.join(proDir, "setting.cfg")
 cf = configparser.ConfigParser()
 cf.read(configPath)
-csv_file = os.path.join(proDir, cf.get("path", "test_file"))
-csv_loader = CSVDataSet(csv_file=csv_file)
+csv_path = os.path.join(proDir, cf.get("path", "csv_path"))
+csv_loader = CSVDataSet(csv_path)
 
 # 处理一个batchsize
 def collate_fn(data):
@@ -61,10 +57,10 @@ rnn.eval()
 t_source = tx
 # tx = rnn_utils.pack_padded_sequence(tx, tx_len, batch_first=True)
 # (16, 59, 2)
-pre_y = rnn(tx, tx_len)
+pre_y, _ = rnn(tx, tx_len)
 # print(pre_y.shape)
-n_pre = (pre_y+t_source[:, :, 0:2]).cpu().detach().numpy()
-# n_pre = pre_y.cpu().detach().numpy()
+# n_pre = (pre_y+t_source[:, :, 0:2]).cpu().detach().numpy()
+n_pre = pre_y.cpu().detach().numpy()
 n_y = ty.cpu().detach().numpy()
 
 save_path = os.path.join(proDir, png_save_path)
@@ -84,8 +80,8 @@ for i, n in enumerate(n_pre):
     # y = np.concatenate((y, n_y[i][:ty_len[i]][:, 1]))
     # x_pre = np.concatenate((x_pre, n[:ty_len[i]][:, 0]))
     # y_pre = np.concatenate((y_pre, n[:ty_len[i]][:, 1]))
-    x = np.concatenate((x, n_y[i][:ty_len[i]][:, 0]))
-    y = np.concatenate((y, n_y[i][:ty_len[i]][:, 1]))
+    x = np.concatenate((x, n_y[i][:ty_len[i]][:, 2]))
+    y = np.concatenate((y, n_y[i][:ty_len[i]][:, 3]))
     x_pre = np.concatenate((x_pre, n[:ty_len[i]][:, 0]))
     y_pre = np.concatenate((y_pre, n[:ty_len[i]][:, 1]))
     for j, p in enumerate(n_y[i][:ty_len[i]][:, 0]):

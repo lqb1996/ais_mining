@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 from torch.nn import functional as F
 import torch.nn.utils.rnn as rnn_utils
+import math
 
 
 # training at gpu 1-05080043
@@ -178,8 +179,9 @@ class TransLSTM4PRE(nn.Module):
         out_pad = self.norm2(r_out1)
         for transformer in self.transformer_blocks:
             out_pad = transformer.forward(out_pad+r_out1)
-        out = self.out(out_pad+r_out1)
-        return out
+        feature = out_pad+r_out1
+        out = self.out(feature)
+        return out, feature
 
 
 class EncoderBlocks(nn.Module):
@@ -233,7 +235,7 @@ class MultiHeadedAttention(nn.Module):
 
         self.linear_layers = nn.ModuleList([nn.Linear(d_model, d_model) for _ in range(3)])
         self.output_linear = nn.Linear(d_model, d_model)
-        self.attention = SelfAttention()
+        self.attention = Attention()
 
         self.dropout = nn.Dropout(p=dropout)
 
@@ -271,6 +273,55 @@ class Attention(nn.Module):
             p_attn = dropout(p_attn)
 
         return torch.matmul(p_attn, value), p_attn
+
+
+class TransLSTM4CLS(nn.Module):
+    def __init__(self, input_size=13, num_hidden_encoder_layers=2, hidden_size=168):
+        super(TransLSTM4CLS, self).__init__()
+        self.lstm1 = nn.LSTM(
+            input_size=6,
+            hidden_size=hidden_size,
+            num_layers=1,
+            bidirectional=True,
+            batch_first=True,
+            dropout=0.4
+        )
+        self.lstm2 = nn.LSTM(
+            input_size=7,
+            hidden_size=hidden_size,
+            num_layers=1,
+            bidirectional=True,
+            batch_first=True,
+            dropout=0.4
+        )
+
+        self.norm1 = nn.LayerNorm(input_size)
+        self.norm2 = nn.LayerNorm(hidden_size*2)
+        # self.attention = SelfAttention(336)
+        self.transformer_blocks = nn.ModuleList(
+            [EncoderBlocks(hidden_size*2) for _ in range(num_hidden_encoder_layers)])
+        self.out = nn.Sequential(
+            nn.Linear(hidden_size*2, 128),
+            nn.ELU(),
+            nn.Linear(128, 2)
+        )
+
+    def forward(self, x, x_len):
+        x = self.norm1(x)
+        x1 = x[:, :, :6]
+        x1 = rnn_utils.pack_padded_sequence(x1, x_len, batch_first=True)
+        x2 = x[:, :, 6:]
+        x2 = rnn_utils.pack_padded_sequence(x2, x_len, batch_first=True)
+        r_out1, (h_n, h_c) = self.lstm1(x1, None)  # None 表示 hidden state 会用全 0 的 state
+        r_out2, (h_n, h_c) = self.lstm2(x2, None)  # None 表示 hidden state 会用全 0 的 state
+        r_out1, out_len = rnn_utils.pad_packed_sequence(r_out1, batch_first=True)
+        r_out2, out_len = rnn_utils.pad_packed_sequence(r_out2, batch_first=True)
+        r_out1 = r_out1 + r_out2
+        out_pad = self.norm2(r_out1)
+        for transformer in self.transformer_blocks:
+            out_pad = transformer.forward(out_pad+r_out1)
+        out = self.out(out_pad+r_out1)
+        return out
 
 
 class bilstm_attn(nn.Module):

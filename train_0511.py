@@ -48,7 +48,7 @@ save_path = os.path.join(proDir, cf.get("path", "res_path"), time.strftime("%m-%
 # rnn = LSTMlight4PRE()
 # rnn = LSTM_Attention4PRE()
 # rnn = ResLSTM_Attention4PRE()
-rnn = TransLSTM4PRE()
+rnn = TransLSTM4PRE(num_hidden_encoder_layers=6)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = cf.get("super-param", "gpu_ids")
 USE_CUDA = torch.cuda.is_available()
@@ -74,7 +74,7 @@ for step in range(int(cf.get("super-param", "epoch"))):
         #     weights = torch.tensor(weights, dtype=torch.float32, device=device)
         ttruth = tx
         tx = tx[:, :, :]
-        output = rnn(tx, tx_len)
+        output, _ = rnn(tx, tx_len)
         # 根据预测序列所用到的长短调整loss计算log()-1的乘积
         for i, y in enumerate(ty):
             offset_loss = loss_func(output[i][:ty_len[i]], y[:ty_len[i], -2:])
@@ -95,7 +95,7 @@ for step in range(int(cf.get("super-param", "epoch"))):
             ty = ty.float().cuda()
 
         # tx = rnn_utils.pack_padded_sequence(tx, tx_len, batch_first=True)
-        output = rnn(tx, tx_len)
+        output, _ = rnn(tx, tx_len)
         loss = loss_func(output, ty[:, :, -2:])
         sum = 0
         for item in mean_loss:
