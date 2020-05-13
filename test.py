@@ -35,9 +35,6 @@ test_loader = DataLoader(dataset=csv_loader,
                           collate_fn=collate_fn,
                           shuffle=True)
 
-# rnn = LSTM4PRE()
-# rnn = LSTMlight4PRE()
-# rnn = ResLSTM_Attention4PRE()
 rnn = TransLSTM4PRE()
 os.environ["CUDA_VISIBLE_DEVICES"] = cf.get("super-param", "gpu_ids")
 USE_CUDA = torch.cuda.is_available()
@@ -47,49 +44,47 @@ if torch.cuda.is_available():
 rnn = torch.load(cf.get("path", "model_file"))
 png_save_path = cf.get("path", "test_png_path")
 
-test_iter = iter(test_loader)
-# 测试一个batchsize
-tx, tx_len, ty, ty_len = test_iter.next()
-if torch.cuda.is_available():
-    tx = tx.float().cuda()
-    ty = ty.float().cuda()
-rnn.eval()
-t_source = tx
-# tx = rnn_utils.pack_padded_sequence(tx, tx_len, batch_first=True)
-# (16, 59, 2)
-pre_y, _ = rnn(tx, tx_len)
-# print(pre_y.shape)
-# n_pre = (pre_y+t_source[:, :, 0:2]).cpu().detach().numpy()
-n_pre = pre_y.cpu().detach().numpy()
-n_y = ty.cpu().detach().numpy()
-
-save_path = os.path.join(proDir, png_save_path)
-x = np.array([])
-y = np.array([])
+x_truth = np.array([])
+y_truth = np.array([])
 x_pre = np.array([])
 y_pre = np.array([])
+lon = np.array([])
+lat = np.array([])
+lon_pre = np.array([])
+lat_pre = np.array([])
+
+for tx, tx_len, ty, ty_len in test_loader:
+    if torch.cuda.is_available():
+        tx = tx.float().cuda()
+        ty = ty.float().cuda()
+    with torch.no_grad():
+        rnn.eval()
+        pre_y, _ = rnn(tx, tx_len)
+
+        for i, n in enumerate(pre_y.cpu().detach().numpy()):
+            lon = np.concatenate((lon, ty[i][:tx_len[i]][:, 0].cpu().detach().numpy()))
+            lat = np.concatenate((lat, ty[i][:tx_len[i]][:, 1].cpu().detach().numpy()))
+            x_truth = np.concatenate((x_truth, ty[i][:tx_len[i]][:, 2].cpu().detach().numpy()))
+            y_truth = np.concatenate((y_truth, ty[i][:tx_len[i]][:, 3].cpu().detach().numpy()))
+            x_pre = np.concatenate((x_pre, n[:ty_len[i]][:, 0]))
+            y_pre = np.concatenate((y_pre, n[:ty_len[i]][:, 1]))
+            lon_pre = np.concatenate((lon_pre, n[:ty_len[i]][:, 0]+tx[i][:tx_len[i]][:, 0].cpu().detach().numpy()))
+            lat_pre = np.concatenate((lat_pre, n[:ty_len[i]][:, 1]+tx[i][:tx_len[i]][:, 1].cpu().detach().numpy()))
+
+save_path = os.path.join(proDir, png_save_path)
 if not os.path.exists(save_path):
     os.makedirs(save_path)
 
-s = "let route = '"
-truth = []
-predict = []
-for i, n in enumerate(n_pre):
-    # print(np.concatenate((n, n_y[i]), axis=1)[:ty_len[i]])
-    # x = np.concatenate((x, n_y[i][:ty_len[i]][:, 0]))
-    # y = np.concatenate((y, n_y[i][:ty_len[i]][:, 1]))
-    # x_pre = np.concatenate((x_pre, n[:ty_len[i]][:, 0]))
-    # y_pre = np.concatenate((y_pre, n[:ty_len[i]][:, 1]))
-    x = np.concatenate((x, n_y[i][:ty_len[i]][:, 2]))
-    y = np.concatenate((y, n_y[i][:ty_len[i]][:, 3]))
-    x_pre = np.concatenate((x_pre, n[:ty_len[i]][:, 0]))
-    y_pre = np.concatenate((y_pre, n[:ty_len[i]][:, 1]))
-    for j, p in enumerate(n_y[i][:ty_len[i]][:, 0]):
-        truth.append({"lon": str(p), "lat": str(n_y[i][:ty_len[i]][j, 1])})
-        predict.append({"lon": str(n[:ty_len[i]][j, 0]), "lat": str(n[:ty_len[i]][j, 1])})
-
-s += json.dumps([truth, predict]) + "';"
+# s = "let route = '"
+# truth = []
+# predict = []
+#     for j, p in enumerate(n_y[i][:ty_len[i]][:, 0]):
+#         truth.append({"lon": str(p), "lat": str(n_y[i][:ty_len[i]][j, 1])})
+#         predict.append({"lon": str(n[:ty_len[i]][j, 0]), "lat": str(n[:ty_len[i]][j, 1])})
+# s += json.dumps([truth, predict]) + "';"
 # with open(os.path.join(save_path, 'show_points.js'), 'w') as show_points:
 #     show_points.write(s)
-plot(x=x, y=y, x_pre=x_pre, y_pre=y_pre, file=os.path.join(save_path, 'test_truth.png'))
+plot(x=lon, y=lat, x_pre=lon_pre, y_pre=lat_pre, file=os.path.join(save_path, 'test_location.png'))
+plot(x=x_truth, y=y_truth, x_pre=x_pre, y_pre=y_pre, file=os.path.join(save_path, 'test_mixed.png'))
 plot(x=[], y=[], x_pre=x_pre, y_pre=y_pre, file=os.path.join(save_path, 'test_pre.png'))
+plot(x=x_truth, y=y_truth, x_pre=[], y_pre=[], file=os.path.join(save_path, 'test_truth.png'))

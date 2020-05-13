@@ -25,4 +25,7 @@ take a modle like transformer
 loss:0.01,just so so
 改进transfomer，增加全局残差结构(效果不错)
 loss:0.0002
+num_block=2和num_block=6
+均出现梯度爆炸问题
+设置梯度裁剪和学习率衰减
 ##clustering object

@@ -34,10 +34,7 @@ test_loader = DataLoader(dataset=csv_loader,
                           collate_fn=collate_fn,
                           shuffle=True)
 
-# rnn = LSTM4PRE()
-# rnn = LSTMlight4PRE()
-# rnn = ResLSTM_Attention4PRE()
-rnn = TransLSTM4PRE()
+rnn = TransLSTM4PRE(num_hidden_encoder_layers=6)
 os.environ["CUDA_VISIBLE_DEVICES"] = cf.get("super-param", "gpu_ids")
 USE_CUDA = torch.cuda.is_available()
 device = torch.device("cuda" if USE_CUDA else "cpu")
@@ -46,7 +43,9 @@ if torch.cuda.is_available():
 rnn = torch.load(cf.get("path", "model_file"))
 png_save_path = cf.get("path", "test_png_path")
 feature_total = None
-x_total = []
+x_len = []
+x = np.array([])
+y = np.array([])
 
 for tx, tx_len, ty, ty_len in test_loader:
     if torch.cuda.is_available():
@@ -55,18 +54,27 @@ for tx, tx_len, ty, ty_len in test_loader:
     with torch.no_grad():
         rnn.eval()
         pre_y, feature = rnn(tx, tx_len)
-        feature = torch.mean(feature, dim=1)
         t_source = tx.cpu().detach().numpy()
+        x_len += tx_len
 
         for i, n in enumerate(t_source):
-            x = np.concatenate((x, n_y[i][:ty_len[i]][:, 2]))
-            y = np.concatenate((y, n_y[i][:ty_len[i]][:, 3]))
-        if feature_total is None:
-            feature_total = feature.cpu().detach().numpy()
-        else:
-            feature_total = np.concatenate((feature_total, feature.cpu().detach().numpy()))
+            x = np.concatenate((x, t_source[i][:tx_len[i]][:, 0]))
+            feature_mean = torch.mean(feature[i][:tx_len[i]].view(tx_len[i], -1), dim=0)
+            y = np.concatenate((y, t_source[i][:tx_len[i]][:, 1]))
+            if feature_total is None:
+                feature_total = feature_mean.cpu().detach().numpy()[np.newaxis, :]
+            else:
+                feature_total = np.concatenate((feature_total, feature_mean.cpu().detach().numpy()[np.newaxis, :]), axis=0)
 
-estimator = KMeans(n_clusters=3)
-y_pred = estimator.fit_predict(feature_total)
-
-print(y_pred)
+estimator = KMeans(n_clusters=5)
+kmeans_pred = estimator.fit_predict(feature_total)
+c = np.array([])
+for i, k in enumerate(kmeans_pred):
+    z = np.zeros((x_len[i],), dtype=np.int)
+    z[:] = k
+    c = np.concatenate((c, z))
+cluster_cls = np.concatenate((x[np.newaxis, :], y[np.newaxis, :], c[np.newaxis, :]), axis=0).T
+# plt.scatter(x, y, c=c, alpha=0.3)
+# plt.savefig('test_kmeans.png')
+# print(cluster_cls.shape)
+cluster_plot(cluster_cls)
