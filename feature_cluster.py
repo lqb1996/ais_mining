@@ -66,7 +66,8 @@ for tx, tx_len, ty, ty_len in test_loader:
             else:
                 feature_total = np.concatenate((feature_total, feature_mean.cpu().detach().numpy()[np.newaxis, :]), axis=0)
 
-estimator = KMeans(n_clusters=5)
+n_clusters = 10
+estimator = KMeans(n_clusters=n_clusters)
 kmeans_pred = estimator.fit_predict(feature_total)
 c = np.array([])
 for i, k in enumerate(kmeans_pred):
@@ -74,7 +75,7 @@ for i, k in enumerate(kmeans_pred):
     z[:] = k
     c = np.concatenate((c, z))
 cluster_cls = np.concatenate((x[np.newaxis, :], y[np.newaxis, :], c[np.newaxis, :]), axis=0).T
-# plt.scatter(x, y, c=c, alpha=0.3)
-# plt.savefig('test_kmeans.png')
+plt.scatter(x, y, c=c, alpha=0.3)
+plt.savefig('png/cluster_res/kmeans'+str(n_clusters)+'.png')
 # print(cluster_cls.shape)
 cluster_plot(cluster_cls)

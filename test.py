@@ -5,9 +5,11 @@ import torch
 import json
 import torch.nn as nn
 import configparser
-from module.lstm_base import *
+from module.lstm_large import *
 import torch.nn.utils.rnn as rnn_utils
 
+from utils.BLexchangeXY import *
+from utils.XYexchangeBL import *
 from DataLoader import *
 from plot import *
 
@@ -18,16 +20,35 @@ cf.read(configPath)
 csv_path = os.path.join(proDir, cf.get("path", "csv_path"))
 csv_loader = CSVDataSet(csv_path)
 
+
 # 处理一个batchsize
 def collate_fn(data):
+    # mmsi,longitude,latitude,cog,rot,trueHeading,sog,time,navStatus,gap,gap,gap
     data.sort(key=lambda x: len(x), reverse=True)
-    data_x = [torch.cat((sq[0:-1, 1:7], sq[0:-1, 9:]), 1) for sq in data]
+    data_truth = [torch.cat((sq[0:-1, 1:7], sq[0:-1, 9:]), 1) for sq in data]
     data_y = [torch.cat((sq[1:, 1:3], sq[1:, -2:]), 1) for sq in data]
+    data_x = []
+    nm2m = 1.852 * 5 / 18   # 单位转换参数,km/ms
+    for idx, d in enumerate(data):
+        offset = None
+        gap_time = torch.unsqueeze(data[idx][1:, 9], 1)
+        for oi, o in enumerate(d[0:-1, :]):
+            v_x = o[6] * math.sin(math.radians(o[3])) * nm2m
+            v_y = o[6] * math.cos(math.radians(o[3])) * nm2m
+            pre_offset_x = v_x * d[oi+1][9]
+            pre_offset_y = v_y * d[oi+1][9]
+            pre_offset_lon, pre_offset_lat = transformMercatorToLngLat(pre_offset_x, pre_offset_y)
+            if offset is not None:
+                offset = torch.cat((offset, torch.unsqueeze(torch.tensor([pre_offset_lon, pre_offset_lat]), 0)), 0)
+            else:
+                offset = torch.unsqueeze(torch.tensor([pre_offset_lon, pre_offset_lat]), 0)
+        data_x.append(torch.cat((d[0:-1, 3:7], offset, gap_time), 1))
     datax_length = [len(sq) for sq in data_x]
     datay_length = [len(sq) for sq in data_x]
     data_x = rnn_utils.pad_sequence(data_x, batch_first=True, padding_value=0)
     data_y = rnn_utils.pad_sequence(data_y, batch_first=True, padding_value=0)
-    return data_x, datax_length, data_y, datay_length
+    data_truth = rnn_utils.pad_sequence(data_truth, batch_first=True, padding_value=0)
+    return data_x, datax_length, data_y, datay_length, data_truth
 
 
 test_loader = DataLoader(dataset=csv_loader,
@@ -35,7 +56,7 @@ test_loader = DataLoader(dataset=csv_loader,
                           collate_fn=collate_fn,
                           shuffle=True)
 
-rnn = TransLSTM4PRE()
+rnn = TransLSTM4PRE(num_hidden_encoder_layers=6)
 os.environ["CUDA_VISIBLE_DEVICES"] = cf.get("super-param", "gpu_ids")
 USE_CUDA = torch.cuda.is_available()
 device = torch.device("cuda" if USE_CUDA else "cpu")
@@ -53,10 +74,11 @@ lat = np.array([])
 lon_pre = np.array([])
 lat_pre = np.array([])
 
-for tx, tx_len, ty, ty_len in test_loader:
+for tx, tx_len, ty, ty_len, ttruth in test_loader:
     if torch.cuda.is_available():
         tx = tx.float().cuda()
         ty = ty.float().cuda()
+        ttruth = ttruth.float().cuda()
     with torch.no_grad():
         rnn.eval()
         pre_y, _ = rnn(tx, tx_len)
@@ -68,8 +90,8 @@ for tx, tx_len, ty, ty_len in test_loader:
             y_truth = np.concatenate((y_truth, ty[i][:tx_len[i]][:, 3].cpu().detach().numpy()))
             x_pre = np.concatenate((x_pre, n[:ty_len[i]][:, 0]))
             y_pre = np.concatenate((y_pre, n[:ty_len[i]][:, 1]))
-            lon_pre = np.concatenate((lon_pre, n[:ty_len[i]][:, 0]+tx[i][:tx_len[i]][:, 0].cpu().detach().numpy()))
-            lat_pre = np.concatenate((lat_pre, n[:ty_len[i]][:, 1]+tx[i][:tx_len[i]][:, 1].cpu().detach().numpy()))
+            lon_pre = np.concatenate((lon_pre, n[:ty_len[i]][:, 0]+ttruth[i][:tx_len[i]][:, 0].cpu().detach().numpy()))
+            lat_pre = np.concatenate((lat_pre, n[:ty_len[i]][:, 1]+ttruth[i][:tx_len[i]][:, 1].cpu().detach().numpy()))
 
 save_path = os.path.join(proDir, png_save_path)
 if not os.path.exists(save_path):

@@ -1,6 +1,6 @@
 #Ais Data Mining
-##predict object
-loss:MSE
+##predict task
+loss为MSE loss
 just lstm
 loss:0.3
 lstm+dropout
@@ -25,7 +25,19 @@ take a modle like transformer
 loss:0.01,just so so
 改进transfomer，增加全局残差结构(效果不错)
 loss:0.0002
-num_block=2和num_block=6
-均出现梯度爆炸问题
-设置梯度裁剪和学习率衰减
+设置num_block=2和num_block=6均出现梯度爆炸问题
+其中num_block=2梯度尤为明显，且训练过程中不收敛
+设置max_norm=12的L2梯度裁剪和学习率衰减
+loss在0.003,4,50之间跳动，全局没有下降
+设置梯度累加 
+loss依然跳动，影响不大
+设置固定值的梯度裁剪,影响不大
+去掉平方项loss，每32个batch更新一次梯度（模拟batchsize=16*32）
+新增条件推理后的数据，根据速度和方向计算目标在各方向的偏移量
+loss为mse和实际loss的和
+仅计算偏移量mse损失时，总是会将预测点归一到0
+将lambda值设为100,loss收敛至31,并有一定效果,MSE loss为0.3左右
+
+尝试使用回传统的lstm，在重新做好数据治理的基础上
+尝试使用回传统的lstm+attention，在重新做好数据治理的基础上
 ##clustering object

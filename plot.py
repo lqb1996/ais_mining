@@ -94,7 +94,7 @@ if __name__ == '__main__':
     epoch = []
     train_loss = []
     val_loss = []
-    with open('result/05-11_18:32/lstm4pre.log', 'r') as f:
+    with open('result/05-23_00:07/lstm4pre.log', 'r') as f:
         for l in f.readlines():
             epoch.append(int(l.split('epoch : ')[1].split('  ')[0]))
             train_loss.append(float(l.split('train_loss : ')[1].split('  ')[0]))
