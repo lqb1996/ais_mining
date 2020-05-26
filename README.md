@@ -36,8 +36,16 @@ loss依然跳动，影响不大
 新增条件推理后的数据，根据速度和方向计算目标在各方向的偏移量
 loss为mse和实际loss的和
 仅计算偏移量mse损失时，总是会将预测点归一到0
-将lambda值设为100,loss收敛至31,并有一定效果,MSE loss为0.3左右
 
-尝试使用回传统的lstm，在重新做好数据治理的基础上
-尝试使用回传统的lstm+attention，在重新做好数据治理的基础上
+输入数据的维度改为7维:cog,rot,trueHeading,sog,预测点与当前点的时间差,根据方向和速度预测的经度偏移量,根据方向和速度预测的纬度偏移量
+05-23_00:07 将lambda值设为100,loss收敛至30左右,并有一定效果,MSE loss为0.3左右，block num为2，但是有很多可以改进的地方
+
+05-24_23:15 尝试使用传统的lstm,2层的双向lstm，在重新做好数据治理的基础上，loss为offset和实际loss的平方和
+
+05-24_23:39 尝试使用传统的lstm+attention，在重新做好数据治理的基础上，loss为offset和实际loss的平方和
+
+05-25_20:40 将loss设为offset和实际loss的平方和,block num设为7
+
+02-26_18:21  将block中的attention层改为mutihead-attention层，head数为7，使用大数据集时在单卡Titan RTX上batch_size为1会爆显存，因此使用mini_dataset训练,batch_size为4，每积累128个batch计算一次梯度
+
 ##clustering object

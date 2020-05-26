@@ -65,7 +65,7 @@ save_path = os.path.join(proDir, cf.get("path", "res_path"), time.strftime("%m-%
 # rnn = LSTM4PRE()
 # rnn = LSTMlight4PRE()
 # rnn = LSTM_Attention4PRE()
-rnn = TransLSTM4PRE(num_hidden_encoder_layers=7)
+rnn = TransLSTM4PRE()
 
 os.environ["CUDA_VISIBLE_DEVICES"] = cf.get("super-param", "gpu_ids")
 USE_CUDA = torch.cuda.is_available()
@@ -98,13 +98,6 @@ for step in range(int(cf.get("super-param", "epoch"))):
 
         output, _ = rnn(tx, tx_len)
 
-        # 直接对输出结果计算MSE损失
-        # loss = loss_func(output, ty)
-        # 分开计算输出结果计算MSE损失
-        # lamda = float(cf.get("super-param", "lamda"))
-        # loss1 = loss_func(output[:, :2], ty[:, :2])
-        # loss2 = loss_func(output[:, -2:], ty[:, -2:])
-        # loss = loss1 + lamda * loss2
         loss = None
         for i, y in enumerate(ty):
             offset_loss = loss_func(output[i][:ty_len[i]], y[:ty_len[i], -2:])
@@ -115,7 +108,7 @@ for step in range(int(cf.get("super-param", "epoch"))):
                 loss = offset_loss**2 + truth_loss**2
         loss.backward()  # back propagation, compute gradients
         mean_loss.append(loss.cpu().item())
-        if (batch+1) % 128 == 0:
+        if (batch+1) % 512 == 0:
             optimizer.step()
             optimizer.zero_grad()
     optimizer.step()

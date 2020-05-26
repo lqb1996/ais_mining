@@ -56,7 +56,7 @@ test_loader = DataLoader(dataset=csv_loader,
                           collate_fn=collate_fn,
                           shuffle=True)
 
-rnn = TransLSTM4PRE(num_hidden_encoder_layers=6)
+rnn = TransLSTM4PRE(num_hidden_encoder_layers=7)
 os.environ["CUDA_VISIBLE_DEVICES"] = cf.get("super-param", "gpu_ids")
 USE_CUDA = torch.cuda.is_available()
 device = torch.device("cuda" if USE_CUDA else "cpu")
@@ -71,6 +71,8 @@ x_pre = np.array([])
 y_pre = np.array([])
 lon = np.array([])
 lat = np.array([])
+suanhaode_x = np.array([])
+suanhaode_y = np.array([])
 lon_pre = np.array([])
 lat_pre = np.array([])
 
@@ -90,6 +92,8 @@ for tx, tx_len, ty, ty_len, ttruth in test_loader:
             y_truth = np.concatenate((y_truth, ty[i][:tx_len[i]][:, 3].cpu().detach().numpy()))
             x_pre = np.concatenate((x_pre, n[:ty_len[i]][:, 0]))
             y_pre = np.concatenate((y_pre, n[:ty_len[i]][:, 1]))
+            suanhaode_x = np.concatenate((suanhaode_x, tx[i][:tx_len[i]][:, 4].cpu().detach().numpy()))
+            suanhaode_y = np.concatenate((suanhaode_y, tx[i][:tx_len[i]][:, 5].cpu().detach().numpy()))
             lon_pre = np.concatenate((lon_pre, n[:ty_len[i]][:, 0]+ttruth[i][:tx_len[i]][:, 0].cpu().detach().numpy()))
             lat_pre = np.concatenate((lat_pre, n[:ty_len[i]][:, 1]+ttruth[i][:tx_len[i]][:, 1].cpu().detach().numpy()))
 
@@ -108,5 +112,6 @@ if not os.path.exists(save_path):
 #     show_points.write(s)
 plot(x=lon, y=lat, x_pre=lon_pre, y_pre=lat_pre, file=os.path.join(save_path, 'test_location.png'))
 plot(x=x_truth, y=y_truth, x_pre=x_pre, y_pre=y_pre, file=os.path.join(save_path, 'test_mixed.png'))
+plot(x=x_truth, y=y_truth, x_pre=suanhaode_x, y_pre=suanhaode_y, file=os.path.join(save_path, 'test_suanhaode.png'))
 plot(x=[], y=[], x_pre=x_pre, y_pre=y_pre, file=os.path.join(save_path, 'test_pre.png'))
 plot(x=x_truth, y=y_truth, x_pre=[], y_pre=[], file=os.path.join(save_path, 'test_truth.png'))

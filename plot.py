@@ -1,6 +1,7 @@
 from matplotlib import pyplot as plt
 import numpy as np
 import os
+import math
 
 
 def plot(x, y, x_pre, y_pre, x_l=0, x_u=1, y_l=0, y_u=1, file='test.png'):
@@ -65,20 +66,27 @@ def cluster_plot(cluster_data, x_l=0, x_u=1, y_l=0, y_u=1, dir='png/cluster_res'
         plt.savefig(os.path.join(dir, 'cls_'+str(c)+'.png'))
 
 
-def loss_plot(epoch, train_loss, val_loss, outfile='loss.png'):
+def loss_plot(epoch, train_loss, val_loss, lr, lossfile='loss.png', lrfile='lr.png'):
     plt.figure(dpi=700, figsize=(12, 4))
     colors = ['pink', 'c', 'black']
-    labels = ['train_loss', 'val_loss']
+    labels = ['train_loss', 'val_loss', 'lr']
+    plt.subplot(1, 2, 1)
     plt.plot(epoch,
              train_loss,
              c=colors[0],
              label=labels[0]
              )
+    plt.subplot(1, 2, 2)
     plt.plot(epoch,
              val_loss,
              c=colors[1],
              label=labels[1],
              )
+    # plt.plot(epoch,
+    #          lr,
+    #          c=colors[2],
+    #          label=labels[2],
+    #          )
     plt.xticks(fontsize=5)
     plt.yticks(fontsize=5, rotation=90)
     # plt.xlim(0, 1000)
@@ -87,16 +95,18 @@ def loss_plot(epoch, train_loss, val_loss, outfile='loss.png'):
     plt.legend(frameon=True, fontsize=5, loc='upper right')
     plt.xlabel('epoch', fontsize=5)
     plt.ylabel('loss', fontsize=5)
-    plt.savefig(outfile)
+    plt.savefig(lossfile)
 
 
 if __name__ == '__main__':
     epoch = []
     train_loss = []
     val_loss = []
-    with open('result/05-23_00:07/lstm4pre.log', 'r') as f:
+    lr = []
+    with open('result/05-25_20:40/lstm4pre.log', 'r') as f:
         for l in f.readlines():
             epoch.append(int(l.split('epoch : ')[1].split('  ')[0]))
             train_loss.append(float(l.split('train_loss : ')[1].split('  ')[0]))
+            lr.append(math.log(float(l.split('lr : ')[1].split('  ')[0])))
             val_loss.append(float(l.split('val_loss : ')[1].split('  ')[0]))
-        loss_plot(epoch, train_loss, val_loss)
+        loss_plot(epoch, train_loss, val_loss, lr)
