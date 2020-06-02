@@ -168,73 +168,33 @@ class TransLSTM4PRE(nn.Module):
         )
 
     def forward(self, x, x_len):
+        mask = (x > 0).transpose(1, 2).unsqueeze(2).repeat(1, 1, x.size(1), 1)
         x = self.norm1(x)
         x = rnn_utils.pack_padded_sequence(x, x_len, batch_first=True)
         r_out1, (h_n, h_c) = self.lstm1(x, None)  # None 表示 hidden state 会用全 0 的 state
         r_out1, out_len = rnn_utils.pad_packed_sequence(r_out1, batch_first=True)
         out_pad = self.norm2(r_out1)
         for transformer in self.transformer_blocks:
-            out_pad = transformer.forward(out_pad+r_out1)
+            out_pad = transformer.forward(out_pad+r_out1, mask)
         feature = out_pad+r_out1
         out = self.out(feature)
         return out, feature
 
-
-class TransLSTM4PRE(nn.Module):
-    def __init__(self, input_size=7, num_hidden_encoder_layers=2, hidden_size=224):
-        super(TransLSTM4PRE, self).__init__()
-        self.lstm1 = nn.LSTM(
-            input_size=7,
-            hidden_size=hidden_size,
-            num_layers=1,
-            bidirectional=True,
-            batch_first=True,
-            dropout=0.4
-        )
-        # self.lstm2 = nn.LSTM(
-        #     input_size=input_size-6,
-        #     hidden_size=hidden_size,
-        #     num_layers=1,
-        #     bidirectional=True,
-        #     batch_first=True,
-        #     dropout=0.4
-        # )
-
-        self.norm1 = nn.LayerNorm(input_size)
-        self.norm2 = nn.LayerNorm(hidden_size*2)
-        # self.attention = SelfAttention(336)
-        self.transformer_blocks = nn.ModuleList(
-            [EncoderBlocks(hidden_size*2) for _ in range(num_hidden_encoder_layers)])
-        self.out = nn.Sequential(
-            nn.Linear(hidden_size*2, 128),
-            nn.ELU(),
-            nn.Linear(128, 2)
-        )
-
-    def forward(self, x, x_len):
-        x = self.norm1(x)
-        x = rnn_utils.pack_padded_sequence(x, x_len, batch_first=True)
-        r_out1, (h_n, h_c) = self.lstm1(x, None)  # None 表示 hidden state 会用全 0 的 state
-        r_out1, out_len = rnn_utils.pad_packed_sequence(r_out1, batch_first=True)
-        out_pad = self.norm2(r_out1)
-        for transformer in self.transformer_blocks:
-            out_pad = transformer.forward(out_pad+r_out1)
-        feature = out_pad+r_out1
-        out = self.out(feature)
-        return out, feature
 
 class EncoderBlocks(nn.Module):
     def __init__(self, hidden_dim):
         super(EncoderBlocks, self).__init__()
-        self.attention = MultiHeadedAttention(h=7, d_model=hidden_dim)
+        # self.attention = MultiHeadedAttention(h=11, d_model=hidden_dim)
+        # self.attention = MultiHeadedAttention(h=15, d_model=hidden_dim)
+        self.attention = MultiHeadedAttention(h=24, d_model=hidden_dim)
         self.LN1 = nn.LayerNorm(hidden_dim)
-        self.fn1 = nn.Linear(hidden_dim, hidden_dim)
+        self.fn1 = nn.Linear(hidden_dim, hidden_dim*2)
         self.elu = nn.ELU()
-        self.fn2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fn2 = nn.Linear(hidden_dim*2, hidden_dim)
         self.LN2 = nn.LayerNorm(hidden_dim)
 
-    def forward(self, x):
-        out = self.attention(x, x, x)
+    def forward(self, x, mask):
+        out = self.attention(x, x, x, mask=mask)
         cat_out = self.LN1(out+x)
         out = self.fn1(cat_out)
         out = self.elu(out)
@@ -278,7 +238,7 @@ class MultiHeadedAttention(nn.Module):
 
         self.dropout = nn.Dropout(p=dropout)
 
-    def forward(self, query, key, value):
+    def forward(self, query, key, value, mask=None):
         batch_size = query.size(0)
 
         # 1) Do all the linear projections in batch from d_model => h x d_k
@@ -286,7 +246,7 @@ class MultiHeadedAttention(nn.Module):
                              for l, x in zip(self.linear_layers, (query, key, value))]
 
         # 2) Apply attention on all the projected vectors in batch.
-        x, attn = self.attention(query, key, value, dropout=self.dropout)
+        x, attn = self.attention(query, key, value, mask=mask, dropout=self.dropout)
 
         # 3) "Concat" using a view and apply a final linear.
         x = x.transpose(1, 2).contiguous().view(batch_size, -1, self.h * self.d_k)
@@ -303,8 +263,8 @@ class Attention(nn.Module):
         scores = torch.matmul(query, key.transpose(-2, -1)) \
                  / math.sqrt(query.size(-1))
 
-        if mask is not None:
-            scores = scores.masked_fill(mask == 0, -1e9)
+        # if mask is not None:
+        #     scores = scores.masked_fill(mask == 0, -1e9)
 
         p_attn = F.softmax(scores, dim=-1)
 
@@ -314,18 +274,10 @@ class Attention(nn.Module):
         return torch.matmul(p_attn, value), p_attn
 
 
-class TransLSTM4CLS(nn.Module):
-    def __init__(self, input_size=13, num_hidden_encoder_layers=2, hidden_size=168):
-        super(TransLSTM4CLS, self).__init__()
+class LSTMTrans4PRE(nn.Module):
+    def __init__(self, input_size=7, num_hidden_encoder_layers=2, hidden_size=224):
+        super(LSTMTrans4PRE, self).__init__()
         self.lstm1 = nn.LSTM(
-            input_size=6,
-            hidden_size=hidden_size,
-            num_layers=1,
-            bidirectional=True,
-            batch_first=True,
-            dropout=0.4
-        )
-        self.lstm2 = nn.LSTM(
             input_size=7,
             hidden_size=hidden_size,
             num_layers=1,
@@ -333,10 +285,6 @@ class TransLSTM4CLS(nn.Module):
             batch_first=True,
             dropout=0.4
         )
-
-        self.norm1 = nn.LayerNorm(input_size)
-        self.norm2 = nn.LayerNorm(hidden_size*2)
-        # self.attention = SelfAttention(336)
         self.transformer_blocks = nn.ModuleList(
             [EncoderBlocks(hidden_size*2) for _ in range(num_hidden_encoder_layers)])
         self.out = nn.Sequential(
@@ -346,18 +294,181 @@ class TransLSTM4CLS(nn.Module):
         )
 
     def forward(self, x, x_len):
-        x = self.norm1(x)
-        x1 = x[:, :, :6]
-        x1 = rnn_utils.pack_padded_sequence(x1, x_len, batch_first=True)
-        x2 = x[:, :, 6:]
-        x2 = rnn_utils.pack_padded_sequence(x2, x_len, batch_first=True)
-        r_out1, (h_n, h_c) = self.lstm1(x1, None)  # None 表示 hidden state 会用全 0 的 state
-        r_out2, (h_n, h_c) = self.lstm2(x2, None)  # None 表示 hidden state 会用全 0 的 state
+        mask = (x > 0).transpose(1, 2).unsqueeze(2).repeat(1, 1, x.size(1), 1)
+        x = rnn_utils.pack_padded_sequence(x, x_len, batch_first=True)
+        r_out1, (h_n, h_c) = self.lstm1(x, None)  # None 表示 hidden state 会用全 0 的 state
         r_out1, out_len = rnn_utils.pad_packed_sequence(r_out1, batch_first=True)
-        r_out2, out_len = rnn_utils.pad_packed_sequence(r_out2, batch_first=True)
-        r_out1 = r_out1 + r_out2
-        out_pad = self.norm2(r_out1)
+        out_pad = r_out1
         for transformer in self.transformer_blocks:
-            out_pad = transformer.forward(out_pad+r_out1)
-        out = self.out(out_pad+r_out1)
-        return out
+            out_pad = transformer.forward(out_pad+r_out1, mask)
+        feature = out_pad+r_out1
+        out = self.out(feature)
+        return out, feature
+
+
+class Res_LSTMTrans4PRE(nn.Module):
+    def __init__(self, input_size=7, num_hidden_encoder_layers=2, hidden_size=224):
+        super(Res_LSTMTrans4PRE, self).__init__()
+        self.lstm1 = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=1,
+            bidirectional=True,
+            batch_first=True,
+            dropout=0.4
+        )
+        self.transformer_blocks = nn.ModuleList(
+            [EncoderBlocks(hidden_size*2) for _ in range(num_hidden_encoder_layers)])
+        self.out = nn.Sequential(
+            nn.Linear(hidden_size*2, 128),
+            nn.ELU(),
+            nn.Linear(128, 2)
+        )
+
+    def forward(self, x, x_len):
+        mask = (x > 0).transpose(1, 2).unsqueeze(2).repeat(1, 1, x.size(1), 1)
+        x = rnn_utils.pack_padded_sequence(x, x_len, batch_first=True)
+        r_out1, (h_n, h_c) = self.lstm1(x, None)  # None 表示 hidden state 会用全 0 的 state
+        r_out1, out_len = rnn_utils.pad_packed_sequence(r_out1, batch_first=True)
+        out_pad = r_out1
+        for transformer in self.transformer_blocks:
+            out_pad = transformer.forward(out_pad, mask)+r_out1
+        feature = out_pad
+        out = self.out(feature)
+        return out, feature
+
+
+class KalmanTrans4PRE(nn.Module):
+    def __init__(self, input_size=11, num_hidden_encoder_layers=2, hidden_size=352):
+        super(KalmanTrans4PRE, self).__init__()
+        self.lstm1 = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=1,
+            bidirectional=True,
+            batch_first=True,
+            dropout=0.4
+        )
+        self.transformer_blocks = nn.ModuleList(
+            [EncoderBlocks(hidden_size * 2) for _ in range(num_hidden_encoder_layers)])
+        self.out = nn.Sequential(
+            nn.Linear(hidden_size * 2, 128),
+            nn.ELU(),
+            nn.Linear(128, 2)
+        )
+
+    def forward(self, x, x_len):
+        mask = (x > 0).transpose(1, 2).unsqueeze(2).repeat(1, 1, x.size(1), 1)
+        x = rnn_utils.pack_padded_sequence(x, x_len, batch_first=True)
+        r_out1, (h_n, h_c) = self.lstm1(x, None)  # None 表示 hidden state 会用全 0 的 state
+        r_out1, out_len = rnn_utils.pad_packed_sequence(r_out1, batch_first=True)
+        out_pad = r_out1
+        for transformer in self.transformer_blocks:
+            out_pad = transformer.forward(out_pad, mask) + r_out1
+        feature = out_pad
+        out = self.out(feature)
+        return out, feature
+
+
+class KalmanTrans4PRE_large(nn.Module):
+    def __init__(self, input_size=15, num_hidden_encoder_layers=2, hidden_size=15*32):
+        super(KalmanTrans4PRE_large, self).__init__()
+        self.lstm1 = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=1,
+            bidirectional=True,
+            batch_first=True,
+            dropout=0.4
+        )
+        self.transformer_blocks = nn.ModuleList(
+            [EncoderBlocks(hidden_size * 2) for _ in range(num_hidden_encoder_layers)])
+        self.out = nn.Sequential(
+            nn.Linear(hidden_size * 2, 128),
+            nn.ELU(),
+            nn.Linear(128, 2)
+        )
+
+    def forward(self, x, x_len):
+        mask = (x > 0).transpose(1, 2).unsqueeze(2).repeat(1, 1, x.size(1), 1)
+        x = rnn_utils.pack_padded_sequence(x, x_len, batch_first=True)
+        r_out1, (h_n, h_c) = self.lstm1(x, None)  # None 表示 hidden state 会用全 0 的 state
+        r_out1, out_len = rnn_utils.pad_packed_sequence(r_out1, batch_first=True)
+        out_pad = r_out1
+        for transformer in self.transformer_blocks:
+            out_pad = transformer.forward(out_pad, mask) + r_out1
+        feature = out_pad
+        out = self.out(feature)
+        return out, feature
+
+
+class KalmanTrans4PRE_justres(nn.Module):
+    def __init__(self, input_size=15, num_hidden_encoder_layers=2, hidden_size=15*32):
+        super(KalmanTrans4PRE_justres, self).__init__()
+        self.lstm1 = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=1,
+            bidirectional=True,
+            batch_first=True,
+            dropout=0.4
+        )
+        self.sample = nn.Linear(hidden_size*2, hidden_size)
+        self.transformer_blocks = nn.ModuleList(
+            [EncoderBlocks(hidden_size * 2) for _ in range(num_hidden_encoder_layers)])
+        self.out = nn.Sequential(
+            nn.Linear(hidden_size * 2, 128),
+            nn.ELU(),
+            nn.Linear(128, 2)
+        )
+
+    def forward(self, x, x_len):
+        mask = (x > 0).transpose(1, 2).unsqueeze(2).repeat(1, 1, x.size(1), 1)
+        x_repeat = x.repeat(1, 1, 4)
+        r_out1 = rnn_utils.pack_padded_sequence(x, x_len, batch_first=True)
+        r_out1, (h_n, h_c) = self.lstm1(r_out1, None)  # None 表示 hidden state 会用全 0 的 state
+        r_out1, out_len = rnn_utils.pad_packed_sequence(r_out1, batch_first=True)
+        out_pad = torch.cat((r_out1, x_repeat))
+        out_pad = self.sample(out_pad)
+        for transformer in self.transformer_blocks:
+            out_pad = transformer.forward(out_pad, mask) + r_out1
+        feature = torch.cat((out_pad, x_repeat))
+        feature = self.sample(feature)
+        out = self.out(feature)
+        return out, feature
+
+
+class KalmanTrans4PRE_justadd(nn.Module):
+    def __init__(self, input_size=15, num_hidden_encoder_layers=2, hidden_size=15*32):
+        super(KalmanTrans4PRE_justadd, self).__init__()
+        self.lstm1 = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=1,
+            bidirectional=True,
+            batch_first=True,
+            dropout=0.4
+        )
+        self.sample = nn.Linear(hidden_size*2, hidden_size)
+        self.transformer_blocks = nn.ModuleList(
+            [EncoderBlocks(hidden_size * 2) for _ in range(num_hidden_encoder_layers)])
+        self.out = nn.Sequential(
+            nn.Linear(hidden_size * 2, 128),
+            nn.ELU(),
+            nn.Linear(128, 2)
+        )
+
+    def forward(self, x, x_len):
+        mask = (x > 0).transpose(1, 2).unsqueeze(2).repeat(1, 1, x.size(1), 1)
+        x_repeat = x.repeat(1, 1, 4)
+        r_out1 = rnn_utils.pack_padded_sequence(x, x_len, batch_first=True)
+        r_out1, (h_n, h_c) = self.lstm1(r_out1, None)  # None 表示 hidden state 会用全 0 的 state
+        r_out1, out_len = rnn_utils.pad_packed_sequence(r_out1, batch_first=True)
+        out_pad = torch.cat((r_out1, x_repeat))
+        out_pad = self.sample(out_pad)
+        for transformer in self.transformer_blocks:
+            out_pad = transformer.forward(out_pad, mask) + r_out1
+        feature = torch.cat((out_pad, x_repeat))
+        feature = self.sample(feature)
+        out = self.out(feature)
+        return out, feature

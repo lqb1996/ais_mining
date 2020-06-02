@@ -1,12 +1,8 @@
 import os, sys, glob, math
-import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
 import configparser
-import time
-import datetime
-from module.lstm_large import *
+from module.bert_lstm import *
 from utils.BLexchangeXY import *
 from utils.XYexchangeBL import *
 import torch.nn.utils.rnn as rnn_utils
@@ -62,10 +58,7 @@ test_loader = DataLoader(dataset=csv_loader,
                           shuffle=True)
 
 save_path = os.path.join(proDir, cf.get("path", "res_path"), time.strftime("%m-%d_%H:%M", time.localtime()))
-# rnn = LSTM4PRE()
-# rnn = LSTMlight4PRE()
-# rnn = LSTM_Attention4PRE()
-rnn = TransLSTM4PRE()
+rnn = Simple_BERT_LSTM4PRE(num_hidden_encoder_layers=7)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = cf.get("super-param", "gpu_ids")
 USE_CUDA = torch.cuda.is_available()
