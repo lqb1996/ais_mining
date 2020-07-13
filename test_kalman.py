@@ -114,14 +114,8 @@ for tx, tx_len, ty, ty_len, ttruth in test_loader:
             lat = np.concatenate((lat, ty[i][:tx_len[i]][:, 1].cpu().detach().numpy()))
             x_truth = np.concatenate((x_truth, ty[i][:tx_len[i]][:, 2].cpu().detach().numpy()))
             y_truth = np.concatenate((y_truth, ty[i][:tx_len[i]][:, 3].cpu().detach().numpy()))
-            # x_truth_lon = np.concatenate((x_truth_lon, (ty[i][:tx_len[i]][:, 2]+ttruth[i][:tx_len[i]][:, 0]).cpu().detach().numpy()))
-            # y_truth_lat = np.concatenate((y_truth_lat, (ty[i][:tx_len[i]][:, 3]+ttruth[i][:tx_len[i]][:, 1]).cpu().detach().numpy()))
             x_pre = np.concatenate((x_pre, n[:ty_len[i]][:, 0]))
             y_pre = np.concatenate((y_pre, n[:ty_len[i]][:, 1]))
-            # suanhaode_x = np.concatenate((suanhaode_x, tx[i][:tx_len[i]][:, 4].cpu().detach().numpy()))
-            # suanhaode_y = np.concatenate((suanhaode_y, tx[i][:tx_len[i]][:, 5].cpu().detach().numpy()))
-            # suanhaode_lon = np.concatenate((suanhaode_lon, (tx[i][:tx_len[i]][:, 4]+ttruth[i][:tx_len[i]][:, 0]).cpu().detach().numpy()))
-            # suanhaode_lat = np.concatenate((suanhaode_lat, (tx[i][:tx_len[i]][:, 5]+ttruth[i][:tx_len[i]][:, 1]).cpu().detach().numpy()))
             lon_pre = np.concatenate((lon_pre, n[:ty_len[i]][:, 0]+ttruth[i][:tx_len[i]][:, 0].cpu().detach().numpy()))
             lat_pre = np.concatenate((lat_pre, n[:ty_len[i]][:, 1]+ttruth[i][:tx_len[i]][:, 1].cpu().detach().numpy()))
             if flag < 1 and len(n) > 50 and len(n) < 150:
@@ -136,7 +130,7 @@ for tx, tx_len, ty, ty_len, ttruth in test_loader:
                 offset_loss = loss_func(pre_y[i][:ty_len[i]], ty[i][:tx_len[i]][:, 2:])
                 truth_loss = loss_func(pre_y[i][:ty_len[i]] + ttruth[i][:ty_len[i], :2], ty[i][:tx_len[i]][:, :2])
                 loss = offset_loss ** 2 + truth_loss ** 2
-                if loss < 0.0001:
+                if loss < 0.00001:
                     base_time = int(time.mktime(time.strptime('2019-10-01 00:00:00', "%Y-%m-%d %H:%M:%S")))
                     for r in route_np:
                         date = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime(r[4] + base_time))

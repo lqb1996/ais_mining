@@ -76,11 +76,21 @@ class CSVDataSet(Dataset):
                     if (e + 1) < len(idx) and idx[e+1] - i > 5:
                         splited = sorted_np[i: idx[e+1]]
                         splited[np.isnan(splited)] = 0
-                        self.np_total_x.append(torch.from_numpy(splited))
+                        if idx[e+1] - i > 512:
+                            for i512 in range((idx[e+1] - i) % 512):
+                                if (i512+1)*512 < idx[e+1] - i:
+                                    self.np_total_x.append(torch.from_numpy(splited[i512*512: (i512+1)*512]))
+                        else:
+                            self.np_total_x.append(torch.from_numpy(splited))
                 if biger_than_max.shape[0] - 1 - idx[-1] > 5:
                     splited = sorted_np[idx[-1]:]
                     splited[np.isnan(splited)] = 0
-                    self.np_total_x.append(torch.from_numpy(splited))
+                    if biger_than_max.shape[0] - 1 - idx[-1] > 512:
+                        for i512 in range((biger_than_max.shape[0] - 1 - idx[-1]) % 512):
+                            if (i512 + 1) * 512 < biger_than_max.shape[0] - 1 - idx[-1]:
+                                self.np_total_x.append(torch.from_numpy(splited[i512*512: (i512+1)*512]))
+                    else:
+                        self.np_total_x.append(torch.from_numpy(splited))
 
                 # for i, gap in mmsi_sorted.iterrows():
                 #     if gap['gap_time'] > max_gap_time or gap['gap_time'] is 'NaN':

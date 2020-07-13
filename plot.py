@@ -101,12 +101,12 @@ def loss_plot(epoch, train_loss, val_loss, lr, lossfile='loss.png', lrfile='lr.p
 
 def muti_loss_plot(epoch, train_losses, loss_file='muti_loss.png'):
     plt.figure(dpi=700, figsize=(12, 4))
-    colors = ['pink', 'c', 'black', 'blue', 'yellow']
+    colors = ['pink', 'c', 'black', 'blue', 'orange', 'red']
     for i, loss in enumerate(train_losses):
         e = epoch[:len(loss)]
         plt.plot(e,
                  loss,
-                 c=colors[i % 5],
+                 c=colors[i % 6],
                  label=i
                  )
     plt.xticks(fontsize=5)
@@ -138,14 +138,9 @@ def process_muti_file(file_list, type=0, use_log=True):
 
 if __name__ == '__main__':
     file_list = [
-        # 'result/05-26_18:21/lstm4pre.log',
-        # 'result/05-28_00:08/lstm4pre.log',
-        # 'result/05-28_10:51/lstm4pre.log',
-        # 'result/05-28_15:24/lstm4pre.log',
-        # 'result/05-28_17:48/lstm4pre.log',
-        # 'result/05-28_18:57/lstm4pre.log',
-        'result/05-29_11:22/lstm4pre.log',
-        'result/05-30_00:23/lstm4pre.log',
-        # 'result/05-31_00:48/lstm4pre.log',
+        # 'result/07-06_09:28/lstm4pre.log',
+        # 'result/07-06_15:50/lstm4pre.log',
+        'result/07-08_10:12/lstm4pre.log',
+        'result/07-08_16:26/lstm4pre.log',
     ]
     process_muti_file(file_list, type=0, use_log=True)

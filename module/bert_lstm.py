@@ -6,6 +6,50 @@ import torch.nn.utils.rnn as rnn_utils
 import math
 
 
+class BERT_LSTM4PRE_featureAT(nn.Module):
+    def __init__(self, input_size=24, num_hidden_encoder_layers=12, hidden_size=24, dropout=0.2, multi_head=8):
+        super(BERT_LSTM4PRE_featureAT, self).__init__()
+        hidden_size = hidden_size if hidden_size is not None else input_size*4
+        self.lstm = nn.LSTM(
+            input_size=hidden_size,
+            hidden_size=hidden_size,
+            num_layers=1,
+            bidirectional=True,
+            batch_first=True,
+        )
+        self.multi_head = multi_head
+
+        self.attention = Attention()
+
+        self.transformer_blocks = nn.ModuleList(
+            [EncoderBlocks(input_size, multi_head=multi_head) for _ in range(num_hidden_encoder_layers)])
+        self.out = nn.Sequential(
+            nn.Linear(hidden_size*2, hidden_size),
+            nn.ELU(),
+            nn.Linear(hidden_size, 2)
+        )
+        self.dropout = nn.Dropout(p=dropout)
+
+    def forward(self, x, x_len):
+        # x.shape=(batch, len, feature)
+        # mask.shape=(batch, feature, len, len)
+        # f_mask.shape=(batch, len, feature, feature)
+        mask = (x > 0).transpose(1, 2)[:, :1, :].unsqueeze(2).repeat(1, self.multi_head, x.size(1), 1)
+        f_mask = (x > 0)[:, :1, :].unsqueeze(2).repeat(1, self.multi_head, x.size(2), 1)
+        print(x.shape)
+        out_pad = x.transpose(1, 2)
+        out_pad, attn = self.attention(out_pad, out_pad, out_pad, f_mask)
+        out_pad = out_pad.transpose(1, 2)
+        print(out_pad.shape)
+        for transformer in self.transformer_blocks:
+            out_pad = transformer.forward(out_pad, mask=mask) + x
+        feature = rnn_utils.pack_padded_sequence(out_pad, x_len, batch_first=True)
+        r_out1, (h_n, h_c) = self.lstm(feature, None)  # None 表示 hidden state 会用全 0 的 state
+        r_out1, out_len = rnn_utils.pad_packed_sequence(r_out1, batch_first=True)
+        out = self.out(r_out1)
+        return out, feature
+
+
 class Comfort_BERT_LSTM4PRE(nn.Module):
     def __init__(self, input_size=7, num_hidden_encoder_layers=2, hidden_size=224, dropout=0.2):
         super(Comfort_BERT_LSTM4PRE, self).__init__()
@@ -50,7 +94,7 @@ class Comfort_BERT_LSTM4PRE(nn.Module):
 
 
 class Simple_BERT_LSTM4PRE(nn.Module):
-    def __init__(self, input_size=7, num_hidden_encoder_layers=2, hidden_size=224, dropout=0.2):
+    def __init__(self, input_size=24, num_hidden_encoder_layers=12, hidden_size=12, dropout=0.2):
         super(Simple_BERT_LSTM4PRE, self).__init__()
         hidden_size = hidden_size if hidden_size is not None else input_size*4
         self.lstm = nn.LSTM(
@@ -64,9 +108,9 @@ class Simple_BERT_LSTM4PRE(nn.Module):
         self.transformer_blocks = nn.ModuleList(
             [EncoderBlocks(input_size) for _ in range(num_hidden_encoder_layers)])
         self.out = nn.Sequential(
-            nn.Linear(hidden_size*2, 128),
+            nn.Linear(hidden_size*2, hidden_size),
             nn.ELU(),
-            nn.Linear(128, 2)
+            nn.Linear(hidden_size, 2)
         )
         self.dropout = nn.Dropout(p=dropout)
 
@@ -74,9 +118,8 @@ class Simple_BERT_LSTM4PRE(nn.Module):
         mask = (x > 0).transpose(1, 2).unsqueeze(2).repeat(1, 1, x.size(1), 1)
         out_pad = x
         for transformer in self.transformer_blocks:
-            out_pad = transformer.forward(out_pad, mask=mask)
-        feature = out_pad+x
-        feature = rnn_utils.pack_padded_sequence(feature, x_len, batch_first=True)
+            out_pad = transformer.forward(out_pad, mask=mask) + x
+        feature = rnn_utils.pack_padded_sequence(out_pad, x_len, batch_first=True)
         r_out1, (h_n, h_c) = self.lstm(feature, None)  # None 表示 hidden state 会用全 0 的 state
         r_out1, out_len = rnn_utils.pad_packed_sequence(r_out1, batch_first=True)
         # out = self.dropout(self.out(r_out1))
@@ -85,9 +128,9 @@ class Simple_BERT_LSTM4PRE(nn.Module):
 
 
 class EncoderBlocks(nn.Module):
-    def __init__(self, hidden_dim):
+    def __init__(self, hidden_dim, multi_head=24):
         super(EncoderBlocks, self).__init__()
-        self.attention = MultiHeadedAttention(h=24, d_model=hidden_dim)
+        self.attention = MultiHeadedAttention(h=multi_head, d_model=hidden_dim)
         self.LN1 = nn.LayerNorm(hidden_dim)
         self.fn1 = nn.Linear(hidden_dim, hidden_dim*4)
         self.elu = nn.ELU()
