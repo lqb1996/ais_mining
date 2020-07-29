@@ -121,7 +121,7 @@ def muti_loss_plot(epoch, train_losses, loss_file='muti_loss.png'):
 def process_muti_file(file_list, type=0, use_log=True):
     epochs = []
     losses = []
-    seg_str = ['train_loss : ', 'val_loss : ', 'lr : ']
+    seg_str = ['train_loss : ', 'val_loss : ', 'lr : ', 'train_pre_loss : ', 'val_pre_loss : ']
     for fl in file_list:
         loss = []
         epoch = []
@@ -139,8 +139,8 @@ def process_muti_file(file_list, type=0, use_log=True):
 if __name__ == '__main__':
     file_list = [
         # 'result/07-06_09:28/lstm4pre.log',
-        # 'result/07-06_15:50/lstm4pre.log',
         'result/07-08_10:12/lstm4pre.log',
-        'result/07-08_16:26/lstm4pre.log',
+        # 'result/07-10_16:10/lstm4pre.log',
+        # 'result/07-19_01:24/lstm4pre.log',
     ]
-    process_muti_file(file_list, type=0, use_log=True)
+    process_muti_file(file_list, type=3, use_log=True)

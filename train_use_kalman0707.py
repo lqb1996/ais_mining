@@ -111,10 +111,10 @@ for step in range(int(cf.get("super-param", "epoch"))):
             low_loss = loss_func(output[i][:ty_len[i], 4:], y[:ty_len[i], 4:6])
             total_loss = loss_func(output[i][:ty_len[i], 4:]/1000000+output[i][:ty_len[i], 2:4]/1000+output[i][:ty_len[i], :2], y[:ty_len[i], 6:])
             if loss is not None:
-                loss += total_loss + 2*low_loss
+                loss += total_loss + mid_loss + low_loss**2
                 pre_loss += total_loss
             else:
-                loss = total_loss + 2*low_loss
+                loss = total_loss + mid_loss + low_loss**2
                 pre_loss = total_loss
         loss.backward()  # back propagation, compute gradients
         mean_loss.append(loss.cpu().item())
@@ -154,10 +154,10 @@ for step in range(int(cf.get("super-param", "epoch"))):
                 low_loss = loss_func(output[i][:ty_len[i], 4:], y[:ty_len[i], 4:6])
                 total_loss = loss_func(output[i][:ty_len[i], 4:]/1000000+output[i][:ty_len[i], 2:4]/1000+output[i][:ty_len[i], :2], y[:ty_len[i], 6:])
                 if loss is not None:
-                    loss += total_loss + 2*low_loss
+                    loss += total_loss + mid_loss + low_loss**2
                     pre_loss += total_loss
                 else:
-                    loss = total_loss + 2*low_loss
+                    loss = total_loss + mid_loss + low_loss**2
                     pre_loss = total_loss
             val_loss.append(loss.cpu().item())
             val_pre_loss.append(pre_loss.cpu().item())

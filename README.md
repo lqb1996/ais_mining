@@ -195,8 +195,12 @@ loss下降不够
 
 使用lstm
 
-使用05-30_00:23的方案
+07-08_10:12 使用05-30_00:23的方案
 
-使用06-07_15:30的方案作用于AIS_mining
+07-10_16:10 使用06-07_15:30的方案,加上三种精度计算损失，作用于AIS_mining
+loss=total_loss + low_loss*2
+
+07-19_01:24 使用07-10_16:10的方案
+loss=total_loss + mid_loss + low_loss**2
 ##卡尔曼滤波(Kalman Filter)
 baseline

@@ -361,48 +361,6 @@ class KalmanTrans4PRE_large(nn.Module):
         return out, feature
 
 
-class KalmanTrans4PRE_cat(nn.Module):
-    def __init__(self, input_size=15, num_hidden_encoder_layers=2, hidden_size=15 * 32, multi_head=24, dropout=0.4):
-        super(KalmanTrans4PRE_cat, self).__init__()
-        self.lstm1 = nn.LSTM(
-            input_size=input_size,
-            hidden_size=hidden_size,
-            num_layers=1,
-            bidirectional=True,
-            batch_first=True,
-            dropout=dropout
-        )
-        self.multi_head = multi_head
-        self.a_block = EncoderBlocks(input_size+hidden_size*2, multi_head=multi_head, dropout=dropout)
-        self.linear = nn.Linear(input_size+hidden_size*2, hidden_size*2)
-        self.transformer_blocks_lstm = nn.ModuleList(
-            [EncoderBlocks(hidden_size * 2, multi_head=multi_head, dropout=dropout) for _ in range(num_hidden_encoder_layers)])
-        self.transformer_blocks_input = nn.ModuleList(
-            [EncoderBlocks(input_size, multi_head=multi_head, dropout=dropout) for _ in range(num_hidden_encoder_layers)])
-        self.out = nn.Sequential(
-            nn.Linear(hidden_size * 2, hidden_size),
-            nn.Dropout(p=dropout),
-            nn.ELU(),
-            nn.Linear(hidden_size, 2)
-        )
-
-    def forward(self, x, x_len):
-        mask = (x > 0).transpose(1, 2)[:, :1, :].unsqueeze(2).repeat(1, self.multi_head, x.size(1), 1)
-        r_out1 = rnn_utils.pack_padded_sequence(x, x_len, batch_first=True)
-        r_out1, (h_n, h_c) = self.lstm1(r_out1, None)  # None 表示 hidden state 会用全 0 的 state
-        r_out1, out_len = rnn_utils.pad_packed_sequence(r_out1, batch_first=True)
-        r_out2 = r_out1
-        x_encode = x
-        for trans_lstm in self.transformer_blocks_lstm:
-            r_out2 = trans_lstm.forward(r_out2, mask) + r_out1
-        for trans_in in self.transformer_blocks_input:
-            x_encode = trans_in.forward(x_encode, mask) + x
-        feature = torch.cat((r_out2, x_encode), 2)
-        feature = self.linear(self.a_block(feature, mask))
-        out = self.out(feature)
-        return out, feature
-
-
 class KalmanTrans4PRE_add(nn.Module):
     def __init__(self, input_size=30, num_hidden_encoder_layers=12, hidden_size=4*30, multi_head=30, dropout=0.15):
         super(KalmanTrans4PRE_add, self).__init__()
